@@ -37,7 +37,8 @@ def test_e2k_file_content(result):
     assert 'SHELLPROP  "S14-C40-M"  PROPTYPE  "Slab"  MATERIAL "C40"  MODELINGTYPE "Membrane"' in text
     assert 'LINE  "V7-1"  BEAM  "15"  "16"  0' in text
     assert 'LINE  "V16"  BEAM  "3"  "4"  0' in text
-    assert 'PIER "P3"' in text
+    assert 'SECTION "W60-C60"  PIER  "P3"  OBJMESHTYPE' in text
+    assert 'MASTERSTORY "Yes"' in text and text.rstrip().endswith('$ END OF MODEL FILE')
     assert 'POINT "15"  -11,76 22,21 ' in text            # extremidade estendida ate o eixo do braco
     assert text.count('RESTRAINT "UX UY UZ RX RY RZ"') == result.description.counts()["restraints"]
     e2k = read_e2k_text(text, ",")

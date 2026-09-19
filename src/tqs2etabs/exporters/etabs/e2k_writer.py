@@ -1,12 +1,14 @@
 """Escritor do arquivo texto .e2k do ETABS (File > Import > ETABS .e2k Text File).
 
-Formato observado em arquivos gravados pelo ETABS 23.2 (docs/E2K_FORMAT.md):
-  - secoes iniciadas por "$ TITULO", registros com 2 espacos de recuo;
+Estrutura copiada de um arquivo gravado pelo ETABS 23.3.1 que importa corretamente
+(MARAMBAIA-V40Design.e2k; ver docs/E2K_FORMAT.md): todas as secoes na ordem do ETABS
+(vazias ficam so com o cabecalho), materiais STEEL/C<fck>/A615Gr60, REBAR DEFINITIONS,
+CONCRETESECTION completa, MASTERSTORY, `  END` antes de `$ END OF MODEL FILE`.
   - separador decimal = o do Windows (pt-BR: virgula) -> configuravel;
   - pontos 2D; o pavimento e atribuido no objeto (POINTASSIGN/LINEASSIGN/AREAASSIGN);
-  - LINE "nome" COLUMN pi pj 1  (1 = ponto i no pavimento de baixo); BEAM pi pj 0;
+  - LINE "nome" COLUMN pi pj 1 (1 = ponto i no pavimento de baixo); BEAM pi pj 0;
   - AREA "nome" PANEL 4 a b b a 1 1 0 0 (dois primeiros pontos no pavimento de baixo);
-  - AREA "nome" FLOOR n p1..pn 0..0.
+  - AREA "nome" FLOOR n p1..pn 0..0; AREAASSIGN ... SECTION "..." PIER "P1" ...
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import datetime as _dt
 from pathlib import Path
 
 from ...domain.config import EtabsOptions
+from . import e2k_template as T
 from .description import EtabsDescription
 
 
@@ -34,146 +37,120 @@ class E2kFormatter:
         """Numeros grandes (E, fc) sem casas decimais."""
         return str(int(round(v)))
 
+    def fixed(self, block: str) -> str:
+        """Blocos fixos do template (gravados com virgula) no separador configurado."""
+        return block if self.sep == "," else block.replace(",", self.sep)
+
 
 def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = "model.e2k") -> str:
     f = E2kFormatter(opt.decimal_separator)
     n = f.num
     story = desc.story.name
-    L: list[str] = []
-    add = L.append
+    body: dict[str, list[str]] = {name: [] for name in T.SECTION_ORDER}
 
-    add(f"$ File {file_label} saved {_dt.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    add(" ")
-    add("$ PROGRAM INFORMATION")
-    add(f'  PROGRAM  "ETABS"  VERSION "{opt.version}"  ')
-    add("")
-    add("$ CONTROLS")
-    add(f'  UNITS  "{desc.units[0]}"  "{desc.units[1]}"  "{desc.units[2]}"  ')
-    add(f'  TITLE1  "{desc.title}"  ')
-    add('  TITLE2  "Gerado por tqs2etabs a partir do LDF/LST do TQS"  ')
-    add(f"  PREFERENCE  MERGETOL {n(0.001)}")
-    add('  RLLF  METHOD "UBC97"  USEDEFAULTMIN "YES"  ')
-    add("")
-    add("$ STORIES - IN SEQUENCE FROM TOP")
+    def put(section: str, *lines: str) -> None:
+        body[section].extend(lines)
+
+    put("PROGRAM INFORMATION", f'  PROGRAM  "ETABS"  VERSION "{opt.version}"  ')
+    put("CONTROLS",
+        f'  UNITS  "{desc.units[0]}"  "{desc.units[1]}"  "{desc.units[2]}"  ',
+        f'  TITLE1  "{desc.title}"  ',
+        '  TITLE2  "Gerado por tqs2etabs a partir do LDF/LST do TQS"  ',
+        f"  PREFERENCE  MERGETOL {n(0.00254)}",
+        '  RLLF  METHOD "UBC97"  USEDEFAULTMIN "YES"  ')
     for s in desc.stories:
         if s.is_base:
-            add(f'  STORY "{s.name}"  ELEV {n(s.elevation)} ')
+            put("STORIES - IN SEQUENCE FROM TOP", f'  STORY "{s.name}"  ELEV {n(s.elevation)} ')
         else:
-            add(f'  STORY "{s.name}"  HEIGHT {n(s.height)} ')
-    add("")
-    add("$ GRIDS")
-    add(f'  GRIDSYSTEM "{desc.grid_system}"  TYPE "CARTESIAN"  BUBBLESIZE {n(1.25)} ')
+            put("STORIES - IN SEQUENCE FROM TOP", f'  STORY "{s.name}"  HEIGHT {n(s.height)} MASTERSTORY "Yes"  ')
+    put("GRIDS", f'  GRIDSYSTEM "{desc.grid_system}"  TYPE "CARTESIAN"  BUBBLESIZE {n(1.25)} ')
     for g in desc.grids:
         loc = "End" if g.direction == "X" else "Start"
-        add(f'  GRID "{desc.grid_system}"  LABEL "{g.label}"  DIR "{g.direction}"  COORD {n(g.coordinate)} '
-            f'VISIBLE "Yes"  BUBBLELOC "{loc}"  ')
-    add("")
-    add("$ MATERIAL PROPERTIES")
+        put("GRIDS", f'  GRID "{desc.grid_system}"  LABEL "{g.label}"  DIR "{g.direction}"  COORD {n(g.coordinate)} '
+                     f'VISIBLE "Yes"  BUBBLELOC "{loc}"  ')
+
+    put("MATERIAL PROPERTIES", f.fixed(T.STEEL_MATERIAL))
     for m in desc.materials:
-        add(f'  MATERIAL  "{m.name}"    TYPE "Concrete"    WEIGHTPERVOLUME {n(m.unit_weight)}')
-        add(f'  MATERIAL  "{m.name}"    SYMTYPE "Isotropic"  E {f.big(m.e_kn_m2)}  U {n(m.poisson)}  A {n(m.thermal, 8)}')
-        add(f'  MATERIAL  "{m.name}"    FC {f.big(m.fck_mpa * 1000)}')
-    add("")
-    add("$ FRAME SECTIONS")
+        put("MATERIAL PROPERTIES", f.fixed(T.CONCRETE_MATERIAL).format(
+            name=m.name, weight=n(m.unit_weight), e=f.big(m.e_kn_m2), fc=f.big(m.fck_mpa * 1000)))
+    put("MATERIAL PROPERTIES", f.fixed(T.REBAR_MATERIAL))
+    put("REBAR DEFINITIONS", f.fixed(T.REBAR_DEFINITIONS))
+
     for s in desc.frame_sections:
-        add(f'  FRAMESECTION  "{s.name}"  MATERIAL "{s.material}"  SHAPE "Concrete Rectangular"  '
-            f'D {n(s.depth)} B {n(s.width)} ')
-    add("")
-    add("$ CONCRETE SECTIONS")
-    for s in desc.frame_sections:
-        if s.kind == "Beam":
-            add(f'  CONCRETESECTION  "{s.name}"  TYPE "Beam"  COVERTOP {n(0.04)} COVERBOTTOM {n(0.04)} ')
-        else:
-            add(f'  CONCRETESECTION  "{s.name}"  TYPE "Column"  DESIGNCHECK "DESIGN"  COVER {n(0.04)} ')
-    add("")
-    add("$ SLAB PROPERTIES")
+        put("FRAME SECTIONS", f'  FRAMESECTION  "{s.name}"  MATERIAL "{s.material}"  SHAPE "Concrete Rectangular"  '
+                              f'D {n(s.depth)} B {n(s.width)} ')
+        tpl = T.CONCRETE_SECTION_BEAM if s.kind == "Beam" else T.CONCRETE_SECTION_COLUMN
+        put("CONCRETE SECTIONS", f.fixed(tpl).format(name=s.name))
     for s in desc.shell_sections:
         if s.kind == "Slab":
-            add(f'  SHELLPROP  "{s.name}"  PROPTYPE  "Slab"  MATERIAL "{s.material}"  MODELINGTYPE "{s.modeling}"  '
-                f'SLABTYPE "Slab"  SLABTHICKNESS {n(s.thickness)} ')
-    add("")
-    add("$ WALL PROPERTIES")
-    for s in desc.shell_sections:
-        if s.kind == "Wall":
-            add(f'  SHELLPROP  "{s.name}"  PROPTYPE  "Wall"  MATERIAL "{s.material}"  MODELINGTYPE "{s.modeling}"  '
-                f'WALLTHICKNESS {n(s.thickness)} ')
-    add("")
-    add("$ PIER/SPANDREL NAMES ")
+            put("SLAB PROPERTIES", f'  SHELLPROP  "{s.name}"  PROPTYPE  "Slab"  MATERIAL "{s.material}"  '
+                                   f'MODELINGTYPE "{s.modeling}"  SLABTYPE "Slab"  SLABTHICKNESS {n(s.thickness)} ')
+        else:
+            put("WALL PROPERTIES", f'  SHELLPROP  "{s.name}"  PROPTYPE  "Wall"  MATERIAL "{s.material}"  '
+                                   f'MODELINGTYPE "{s.modeling}"  WALLTHICKNESS {n(s.thickness)} ')
     for p in desc.piers:
-        add(f'  PIERNAME  "{p}"  ')
-    add("")
-    add("$ POINT COORDINATES")
+        put("PIER/SPANDREL NAMES ", f'  PIERNAME  "{p}"  ')
+
     for p in desc.points:
-        add(f'  POINT "{p.name}"  {n(p.x)} {n(p.y)} ')
-    add("")
-    add("$ LINE CONNECTIVITIES")
+        put("POINT COORDINATES", f'  POINT "{p.name}"  {n(p.x)} {n(p.y)} ')
     for fr in desc.frames:
-        flag = 1 if fr.kind == "COLUMN" else 0
-        add(f'  LINE  "{fr.name}"  {fr.kind}  "{fr.point_i}"  "{fr.point_j}"  {flag}')
-    add("")
-    add("$ AREA CONNECTIVITIES")
+        put("LINE CONNECTIVITIES", f'  LINE  "{fr.name}"  {fr.kind}  "{fr.point_i}"  "{fr.point_j}"  '
+                                   f'{1 if fr.kind == "COLUMN" else 0}')
     for a in desc.areas:
         pts = "  ".join(f'"{p}"' for p in a.points)
-        if a.kind == "PANEL":
-            flags = "1  1  0  0"
-        else:
-            flags = "  ".join("0" for _ in a.points)
-        add(f'  AREA "{a.name}"  {a.kind}  {len(a.points)}  {pts}  {flags}  ')
-    add("")
-    add("$ POINT ASSIGNS")
+        flags = "1  1  0  0" if a.kind == "PANEL" else "  ".join("0" for _ in a.points)
+        put("AREA CONNECTIVITIES", f'  AREA "{a.name}"  {a.kind}  {len(a.points)}  {pts}  {flags}  ')
+
     for p in desc.points:
-        add(f'  POINTASSIGN  "{p.name}"  "{story}"  USERJOINT  "Yes"  ')
+        put("POINT ASSIGNS", f'  POINTASSIGN  "{p.name}"  "{story}"  USERJOINT  "Yes"  ')
     for r in desc.restraints:
-        add(f'  POINTASSIGN  "{r.point}"  "{r.story}"  RESTRAINT "{r.dofs}"  ')
-    add("")
-    add("$ LINE ASSIGNS")
+        put("POINT ASSIGNS", f'  POINTASSIGN  "{r.point}"  "{r.story}"  RESTRAINT "{r.dofs}"  ')
     for fr in desc.frames:
         rel = f'RELEASE "{fr.releases}"  ' if fr.releases else ""
         if fr.kind == "COLUMN":
             ang = f"ANG  {n(fr.angle)} " if abs(fr.angle) > 1e-9 else ""
-            add(f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}CARDINALPT {fr.cardinal_point}  '
-                f'{ang}MINNUMSTA 3 AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
+            put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}'
+                                f'CARDINALPT {fr.cardinal_point}  {ang}MINNUMSTA 3 AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
         else:
-            add(f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}CARDINALPT {fr.cardinal_point}  '
-                f'MAXSTASPC {n(0.5)} AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
-    add("")
-    add("$ AREA ASSIGNS")
+            put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}'
+                                f'CARDINALPT {fr.cardinal_point}  MAXSTASPC {n(0.5)} AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
     for a in desc.areas:
         if a.kind == "PANEL":
-            pier = f'PIER "{a.pier}"  ' if a.pier else ""
-            add(f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  {pier}OBJMESHTYPE "DEFAULT"  '
-                f'ADDRESTRAINT "Yes"  CARDINALPOINT "MIDDLE"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
+            pier = f'PIER  "{a.pier}"  ' if a.pier else ""
+            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  {pier}OBJMESHTYPE "DEFAULT"  '
+                                f'ADDRESTRAINT "Yes"  CARDINALPOINT "MIDDLE"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
         else:
-            add(f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  ADDRESTRAINT "No"  '
-                f'CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
-    add("")
-    add("$ LOAD PATTERNS")
-    add('  LOADPATTERN "DEAD"  TYPE  "Dead"  SELFWEIGHT  1')
-    add("")
-    add("$ ANALYSIS OPTIONS")
-    add('  ACTIVEDOF "UX UY UZ RX RY RZ"  ')
-    add(f'  AUTOMESHOPTIONS  MESHTYPE  "GENERAL"  FLOORMESHMAXSIZE  {n(opt.floor_mesh_max)} WALLMESHMAXSIZE  {n(opt.wall_mesh_max)} ')
-    add("")
-    add("$ MASS SOURCE")
-    add('  MASSSOURCE  "MsSrc1"    INCLUDEELEMENTS "Yes"    INCLUDEADDEDMASS "Yes"    INCLUDELOADS "No"    '
-        'INCLUDEMOVE "No"    INCLUDELATERALMASS "Yes"    INCLUDEVERTICALMASS "No"    LUMPATSTORIES "Yes"    ISDEFAULT "Yes"  ')
-    add("")
-    add("$ LOAD CASES")
-    add('  LOADCASE "DEAD"  TYPE  "Linear Static"  INITCOND  "PRESET"  ')
-    add('  LOADCASE "DEAD"  LOADPAT  "DEAD"  SF  1 ')
-    add("")
-    add("$ PROJECT INFORMATION")
-    add(f'  PROJECTINFO    COMPANYNAME "{opt.company}"    MODELNAME "{desc.title}"  ')
-    add("")
-    add("$ LOG")
-    add("  STARTCOMMENTS  ")
-    add(f"tqs2etabs: {len(desc.points)} pontos, {len(desc.frames)} barras, {len(desc.areas)} areas")
-    for note in desc.notes:
-        add(f"tqs2etabs: {note}")
-    add("  ENDCOMMENTS  ")
-    add("")
-    add("$ END OF MODEL FILE")
-    add("")
+            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  OBJMESHTYPE "DEFAULT"  '
+                                f'ADDRESTRAINT "No"  CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
+
+    put("LOAD PATTERNS", '  LOADPATTERN "DEAD"  TYPE  "Dead"  SELFWEIGHT  1')
+    put("ANALYSIS OPTIONS",
+        '  ACTIVEDOF "UX UY UZ RX RY RZ"  ',
+        '  MODELHINGESINLINKS "No"  ',
+        f'  AUTOMESHOPTIONS  MESHTYPE  "GENERAL"  FLOORMESHMAXSIZE  {n(opt.floor_mesh_max)} WALLMESHMAXSIZE  {n(opt.wall_mesh_max)} ')
+    put("MASS SOURCE", f.fixed(T.MASS_SOURCE))
+    put("LOAD CASES",
+        '  LOADCASE "Modal"  TYPE  "Modal - Eigen"  INITCOND  "PRESET"  ',
+        '  LOADCASE "Modal"  MAXMODES  12 MINMODES  12 EIGENSHIFTFREQ  0 EIGENCUTOFF  0 EIGENTOL  1E-07 ',
+        '  LOADCASE "DEAD"  TYPE  "Linear Static"  INITCOND  "PRESET"  ',
+        '  LOADCASE "DEAD"  LOADPAT  "DEAD"  SF  1 ')
+    for name, block in T.DESIGN_PREFERENCES.items():
+        put(name, f.fixed(block))
+    put("DIMENSION LINES", f"  DIMLINE DEFAULTSYSTEM {desc.grid_system}")
+    put("PROJECT INFORMATION", f'  PROJECTINFO    COMPANYNAME "{opt.company}"    MODELNAME "{desc.title}"  ')
+    # LOG: so texto simples, como o ETABS grava (as notas do mapeamento ficam no relatorio)
+    put("LOG", "  STARTCOMMENTS  ",
+        f"tqs2etabs generated {len(desc.points)} points {len(desc.frames)} lines {len(desc.areas)} areas "
+        f"at {_dt.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}",
+        "  ENDCOMMENTS  ", "", "  END")
+
+    L: list[str] = [f"$ File {file_label} saved {_dt.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", " "]
+    for name in T.SECTION_ORDER:
+        L.append(f"$ {name}")
+        L.extend(body[name])
+        L.append("")
+    L.append("$ END OF MODEL FILE")
+    L.append("")
     return "\n".join(L)
 
 

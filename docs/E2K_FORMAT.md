@@ -1,6 +1,8 @@
 # Formato .e2k (ETABS 23.2) — o que foi observado e o que o tqs2etabs escreve
 
-Referência: `VITREO-V05.e2k` (gravado pelo ETABS 23.2.0 em máquina pt-BR, 20 368 linhas).
+Referências: `MARAMBAIA-V40Design.e2k` (ETABS 23.3.1, 68 324 linhas — **importa corretamente**; é o gabarito do
+escritor) e `VITREO-V05.e2k` (ETABS 23.2.0). A primeira versão do escritor, feita só com o VITREO, **falhou na
+importação**; as diferenças corrigidas estão na seção "Lições da importação".
 
 ## Regras gerais observadas
 
@@ -36,9 +38,25 @@ linear estático.
 Não escreve: cargas (fora do escopo v1), rebaixos/offsets (decisão 18.5), releases ARE/ARD
 (`etabs.apply_releases = false`), diafragmas, combinações.
 
-## A conferir na primeira importação no ETABS (NEEDS_REVIEW)
+## Lições da importação (versão 1 falhou; versão 2 segue o MARAMBAIA linha a linha)
 
-1. Posição da palavra `PIER "P3"` dentro de `AREAASSIGN` (o arquivo de referência define os piers mas não os atribui).
-2. `CONCRETESECTION` mínima (sem `LONGBARMATERIAL`): se o ETABS exigir, apagar a seção ou completar com o aço padrão.
-3. Orientação de pilar-frame: `ANG = TQS − 90 (mod 180)` — ver `mapping.etabs_column_angle`.
-4. Se a máquina usar ponto decimal, exportar com `decimal_separator = "."` (ou `--config`).
+| Item | v1 (falhou) | v2 (igual ao template) |
+|---|---|---|
+| Seções | só as usadas | **todas as 47 seções na ordem do ETABS**, vazias só com o cabeçalho (`e2k_template.SECTION_ORDER`) |
+| Fim do arquivo | `$ END OF MODEL FILE` | `  ENDCOMMENTS` / linha vazia / `  END` / `$ END OF MODEL FILE` |
+| Stories | `HEIGHT h` | `HEIGHT h MASTERSTORY "Yes"` |
+| Materiais | só `C<fck>` com 3 linhas | `STEEL` + `C<fck>` (5 linhas: WEIGHTPERVOLUME, SYMTYPE/E/U/A, FC, TIMEDEPCONCCODE, HYSTYPE) + `A615Gr60` (Rebar) + `$ REBAR DEFINITIONS` |
+| `CONCRETESECTION` | `TYPE "Beam" COVERTOP …` | linha completa com `LONGBARMATERIAL "A615Gr60" CONFINEBARMATERIAL "A615Gr60"` (viga) / `PATTERN "R-5-3" TRANSREINF "TIES" …` (pilar) |
+| Pier | `PIER "P3"` (chute) | `PIER  "P3"` logo após `SECTION`, confirmado no template |
+| Lajes | sem `OBJMESHTYPE` | `SECTION … OBJMESHTYPE "DEFAULT" ADDRESTRAINT "No" CARDINALPOINT "TOP" …` |
+| Design preferences | ausentes | blocos verbatim do template |
+| LOG | notas com parênteses/vírgulas | uma linha de texto simples |
+
+Verificação automática usada: "esqueleto" de cada linha (palavras-chave com valores substituídos) — toda linha gerada
+tem esqueleto presente no MARAMBAIA.
+
+## Ainda a conferir na importação (NEEDS_REVIEW)
+
+1. Orientação de pilar-frame: `ANG = TQS − 90 (mod 180)` — ver `mapping.etabs_column_angle` (não há pilar-frame no 25 - Tipo).
+2. Se a máquina usar ponto decimal, exportar com `decimal_separator = "."` (ou `--config`).
+3. Conectividade viga–parede nos painéis divididos (juntas explícitas) e malha automática.
