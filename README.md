@@ -45,6 +45,18 @@ No ETABS: *File → Import → ETABS .e2k Text File*. Detalhes do formato e iten
 importação em [docs/E2K_FORMAT.md](docs/E2K_FORMAT.md). O separador decimal segue o Windows (vírgula em
 pt-BR); mude `etabs.decimal_separator` no TOML se necessário.
 
+## Uso — edifício completo (pasta do TQS)
+
+```bash
+tqs2etabs building "C:/Modelos TQS/MEU_EDIFICIO" -o MEU_EDIFICIO.e2k --report relatorio.txt
+```
+
+Varre a pasta do edifício (uma subpasta por planta), lê os `.LDF`/`.LST` de cada planta (a tabela
+"Definição de Pisos" dá a replicação do tipo, cotas e pé-direitos), o fck por piso/elemento em
+`ESPACIAL/RESEST2.TXT` e o E do projeto em `CONCRETO.DAT`; roda o motor geométrico por planta (com os
+eixos dos pilares alinhados entre pavimentos) e gera um único `.e2k` com todos os stories (`SIMILARTO`
+para pisos repetidos, material por story, piers com o nome TQS). Detalhes em [docs/BUILDING_FILES.md](docs/BUILDING_FILES.md).
+
 ## Testes
 
 ```bash
@@ -60,5 +72,5 @@ python -m pytest -q
 | 2 — Importador DXF | fora do escopo (decisão 18.1) |
 | 3 — Geometry Engine (normalização, alinhamento, conectividade, grids, validação, auditoria) | concluída |
 | 4 — Escritor E2K + validação pós-exportação | concluída (falta conferir a importação no ETABS); COM pendente |
-| 5 — Conversão completa | E2K completo; aceite na importação |
+| 5 — Conversão completa (edifício multi-pavimento) | concluída: `tqs2etabs building` (TESTE: 7 pisos, 4 plantas) |
 | 6 — Validação TQS × ETABS | releitura do E2K implementada; readback via COM pendente |

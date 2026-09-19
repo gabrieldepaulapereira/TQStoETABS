@@ -16,7 +16,7 @@ from .document import (LstBeamQuantity, LstColumnQuantity, LstDocument, LstSlabQ
 
 _NUM = r"(-?(?:\d+\.?\d*|\.\d+))"
 _WARN_RE = re.compile(r"^\*\*\*(\d+)\s+AVISO:\s*(.*?)\s*$")
-_STORY_RE = re.compile(rf"^\s*(\d+)\s+(.+?)\s+{_NUM}\s+{_NUM}\s+(\d+)\s+(\S+)\s*$")
+_STORY_RE = re.compile(rf"^\s*(\d+)\s+(.+?)\s+{_NUM}\s+{_NUM}\s+(\d+)(?:\s+(\S+))?\s*$")
 _BEAM_Q_RE = re.compile(rf"^\s*(V\d+)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+{_NUM}\s*$")
 _COL_Q_RE = re.compile(rf"^\s*(P\d+)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+(?:{_NUM}|\(Cortina\))\s*$")
 _SLAB_Q_RE = re.compile(rf"^\s*([A-Z][A-Z0-9]*)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s*$")

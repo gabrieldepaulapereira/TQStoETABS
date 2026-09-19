@@ -1,0 +1,227 @@
+$------------------------------------------------------------------------------
+$     CAD/TQS - Modelador Estrutural
+$
+$     19/09/2026 - 18:36:09
+$     Pasta D:\Modelos TQS\PROJETOS EXTERNOS\MARQUISE\TESTE\Cobertura
+$     Pavimento Cobertura   Projeto 7
+$     Edifício  TESTE       Projeto 1
+$     TEMPLATE
+$     TALLS SOLUTIONS
+$
+$     Arquivo LDF de descrição de plantas de formas.
+$     NÃO modifique este arquivo, pois ele será regravado
+$     sempre que a planta de formas for modificada através
+$     do Modelador Estrutural.
+$------------------------------------------------------------------------------
+
+DEFINE NLISTA     $ Suprime lista dos comandos LDF
+
+PROJETO 0
+$------------------------------------------------------------------------------
+GEOMETRIA
+$
+$     Escala desta planta
+$
+DEFINE ESCALA 50.00
+$
+$     Coordenadas de nós
+$
+$       Nó                 X              Y  
+$
+         1              896.295715,     15.000000
+         2             1530.000000,     15.000000
+         3             2000.000000,     15.000000
+         4             2700.000000,     15.000000
+         5              815.000000,    985.000000
+         6             1530.000000,    985.000000
+         7             2000.000000,    985.000000
+         8             2715.000000,    985.000000
+         9             1530.000000,    335.000000
+        10             1530.000000,    665.000000
+        11             2000.000000,    335.000000
+        12             2000.000000,    665.000000
+        13              830.000000,    335.000000
+        14             2700.000000,    335.000000
+        15              815.000000,    665.000000
+        16             2715.000000,    665.000000
+        17              815.000000,    350.000000
+        18             2715.000000,    350.000000
+        19             2715.000000,    462.584167
+        20              830.000000,    320.000000
+        21              830.000000,     30.000000
+$
+$     Geometria de vigas
+$
+  V4      EIXO     1P17        2RV10        3RV5         4P18   
+  V5      EIXO     3AV4        11RV6        12RV8         7P8    
+  V6      EIXO    13P17        9AV10       11AV5        14P18   
+  V7      EIXO     5P11        6N          7P8         8P12   
+  V8      EIXO    15P11       10AV10       12AV5        16P12   
+  V9      EIXO    17P17       15P11   
+  V10     EIXO     2AV4         9RV6        10RV8         6P8    
+  V11     EIXO    18P18       19P14       16P12   
+$
+$     Geometria de pilares
+$
+  P8      6     MOR
+  P11     5     MOR
+  P12     8     MOR
+  P14     19    MOR
+  P17     1     MOR
+  P18     4     MOR
+$
+$     Geometria de lajes
+$
+  L2      GRE AREA 198650.00    15    10     6     5 P11 ANG 0.000
+  L3      GRE AREA 205500.00    17 P17    13     9    10    15 ANG 0.000
+  L4      GRE AREA 198650.00    21 P17     1     2     9    13 P17 ANG 0.000
+  L5      GRE AREA 198650.00     3     4 P18    14    11 ANG 0.000
+  L6      GRE AREA 205500.00    11    14 P18    18    19    16    12 -
+         ANG 0.000
+  L7      GRE AREA 198650.00    12    16 P12     8     7 ANG 0.000
+FIM
+
+$------------------------------------------------------------------------------
+DIMENSOES
+$
+$     Dimensões de vigas
+$
+  V4     S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 38994.00 1949700.00
+  V5     S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 28197.00 1409850.00
+  V6     S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 54294.00 2714700.00
+  V7     S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 41088.00 2054400.00
+  V8     S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 54294.00 2714700.00
+  V9     S1 30.0/150.0 VOL 8994.00 1349100.00
+  V10    S1 30.0/50.0 S2 30.0/50.0 S3 30.0/50.0 VOL 28197.00 1409850.00
+  V11    S1 30.0/150.0 S2 30.0/150.0 VOL 6363.00 954450.00
+$
+$     Dimensões de pilares
+$
+  P8     R 500.000/30.000  BASE 15.000000,15.000000
+  P11    R 30.000/350.000  BASE 15.000000,335.000000
+  P12    R 30.000/350.000  BASE 15.000000,335.000000
+  P14    R 30.000/87.500  BASE 15.000000,43.750000
+  P17    G 800.000000,0.000000; 1030.000000,0.000000; 1030.000000,30.000000; -
+         830.000000,30.000000; 830.000000,350.000000; 800.000000,350.000000; -
+         BASE 896.295715,15.000000
+  P18    G 2330.000000,0.000000; 2730.000000,-0.000000; -
+         2730.000000,350.000000; 2700.000000,350.000000; -
+         2700.000000,30.000000; 2330.000000,30.000000; -
+         BASE 2700.000000,15.000000
+$
+$     Dimensões de lajes
+$
+  L2     20.000 LARM 1 1
+  L3     20.000 LARM 1 1
+  L4     20.000 LARM 1 1
+  L5     20.000 LARM 1 1
+  L6     20.000 LARM 1 1
+  L7     20.000 LARM 1 1
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 1
+$
+$     Caso com carregamentos 1 a 4
+$     Inclui cargas permanentes e acidentais
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+   L2      ADI    0.40
+   L3      ADI    0.40
+   L4      ADI    0.40
+   L5      ADI    0.40
+   L6      ADI    0.40
+   L7      ADI    0.40
+$
+$	Cargas em pilares
+$
+FIM
+
+$
+$     Desligamos a listagem de resultados para
+$     os carregamentos acima de 1
+$
+DEFINE NLISRES
+$------------------------------------------------------------------------------
+CARGAS CASO 2
+$
+$     Caso de carregamento de peso próprio
+$
+$ DEFINE PPLAJ	$ nao necessario
+$ DEFINE PPVIG	$ nao necessario
+$
+$	Cargas em pilares
+$
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 3
+$
+$     Caso de cargas permanentes
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+   L2      ADI    0.20
+   L3      ADI    0.20
+   L4      ADI    0.20
+   L5      ADI    0.20
+   L6      ADI    0.20
+   L7      ADI    0.20
+$
+$	Cargas em pilares
+$
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 4
+$
+$     Caso de cargas acidentais
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+   L2      ADI    0.20
+   L3      ADI    0.20
+   L4      ADI    0.20
+   L5      ADI    0.20
+   L6      ADI    0.20
+   L7      ADI    0.20
+$
+$	Cargas em pilares
+$
+FIM
+
+$------------------------------------------------------------------------------
+CAD/LAJES
+$
+$   Nao codifique dados dentro desta secão.
+$   
+$   Ela apenas serve para indicar geração automática
+$   do arquivo .LAJ. Se necessário, modifique o
+$   arquivo 0007L.LAJ gerado após o processamento da
+$   planta de formas, antes do processamento de lajes.
+$
+$   Se não desejar usar este arquivo, simplesmente
+$   codifique um com outro nome que não 0007L.LAJ.
+$   Cuidado, pois um arquivo com este nome será 
+$   regravado após cada processamento desta planta.
+$
+FIM
+$------------------------------------------------------------------------------
+CAD/VIGAS
+FIM
+$------------------------------------------------------------------------------
+GRELHA
+FIM

@@ -24,11 +24,14 @@ class E2kModel:
     points: dict[str, tuple[float, float]] = field(default_factory=dict)
     lines: dict[str, tuple[str, str, str]] = field(default_factory=dict)      # nome -> (tipo, pi, pj)
     areas: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
-    line_sections: dict[str, str] = field(default_factory=dict)
+    line_sections: dict[str, str] = field(default_factory=dict)          # nome -> secao (1a atribuicao)
     area_sections: dict[str, str] = field(default_factory=dict)
     area_piers: dict[str, str] = field(default_factory=dict)
     restraints: dict[str, str] = field(default_factory=dict)
     openings: set[str] = field(default_factory=set)
+    line_assigns: dict[tuple[str, str], str] = field(default_factory=dict)   # (nome, story) -> secao
+    area_assigns: dict[tuple[str, str], str] = field(default_factory=dict)
+    point_assigns: set[tuple[str, str]] = field(default_factory=set)
     sections_seen: list[str] = field(default_factory=list)
 
 
@@ -59,14 +62,21 @@ def read_e2k_text(text: str, decimal_separator: str = ",") -> E2kModel:
             npts = int(t[3])
             m.areas[t[1]] = (t[2], tuple(t[4:4 + npts]))
         elif key == "LINEASSIGN":
-            m.line_sections[t[1]] = t[t.index("SECTION") + 1]
+            sec = t[t.index("SECTION") + 1]
+            m.line_sections.setdefault(t[1], sec)
+            m.line_assigns[(t[1], t[2])] = sec
         elif key == "AREAASSIGN":
             if "OPENING" in t:
                 m.openings.add(t[1])
+                m.area_assigns[(t[1], t[2])] = "OPENING"
             if "SECTION" in t:
-                m.area_sections[t[1]] = t[t.index("SECTION") + 1]
+                sec = t[t.index("SECTION") + 1]
+                m.area_sections.setdefault(t[1], sec)
+                m.area_assigns[(t[1], t[2])] = sec
             if "PIER" in t:
-                m.area_piers[t[1]] = t[t.index("PIER") + 1]
+                m.area_piers.setdefault(t[1], t[t.index("PIER") + 1])
         elif key == "POINTASSIGN" and "RESTRAINT" in t:
             m.restraints[t[1]] = t[t.index("RESTRAINT") + 1]
+        elif key == "POINTASSIGN":
+            m.point_assigns.add((t[1], t[2]))
     return m

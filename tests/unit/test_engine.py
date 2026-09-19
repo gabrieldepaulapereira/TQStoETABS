@@ -384,3 +384,21 @@ def test_wall_end_snap_moves_beam_line():
     cfg = Config(tolerances=Tolerances(wall_end_snap=0.05))
     res2 = run_engine(_model(text, cfg), cfg)
     assert res2.model.node("N1").y == 2.91
+
+
+def test_column_axis_continuity_between_stories():
+    """Pilar que muda de 30 para 20 cm mantendo uma face: o eixo do pavimento superior e
+    transladado para o eixo do pavimento de referencia (sem excentricidade)."""
+    from tqs2etabs.geometry_engine.column_axes import derive_column_axes
+    from tqs2etabs.geometry_engine.multi_story import align_columns_to_reference
+    lower = _model(LDF_EXTEND)                                  # P1: parede 300/30, eixo x = 0
+    ref = derive_column_axes(lower, Config()).model.columns
+    upper_text = LDF_EXTEND.replace("P1 R 300/30 ANG 90 BASE 150,0", "P1 R 300/20 ANG 90 BASE 150,0")
+    upper = _model(upper_text)                                  # parede 300/20 com a face x = 0,15 fixa: eixo x = 0,05
+    assert upper.columns["P1"].centroid.x == pytest.approx(0.05)
+    res = align_columns_to_reference(upper, ref, Config())
+    assert res.stats["shifted"] == 1
+    assert res.model.columns["P1"].centroid.x == pytest.approx(0.0)
+    assert any(c.rule == "column-axis-continuity" for c in res.model.changes)
+    # sem referencia: nada muda
+    assert align_columns_to_reference(upper, {}, Config()).stats["shifted"] == 0

@@ -608,7 +608,7 @@ Integração: pipeline completo sobre `25 - Tipo` → 121/8/22/14 lidos, 74 nós
 | 2 | importador DXF | **descartada** (decisão 18.1) |
 | 3 | Geometry Engine completo (10.1) + log/auditoria + comparação | **concluída**: `tqs2etabs normalize`; 4 avisos do TQS resolvidos; 24 extensões (0,05–0,30 m) registradas; 0 erros/0 avisos de validação; 6 X + 2 Y grids; 66 testes |
 | 4 | Escritor E2K + validação pós-exportação | **concluída** (`tqs2etabs export`): 94 pontos, 41 vigas, 42 painéis (8 piers), 14 lajes, 8 grids; releitura do .e2k sem erros; 78 testes. Formato em docs/E2K_FORMAT.md. **Pendente: abrir no ETABS** (itens NEEDS_REVIEW do doc) e o escritor COM |
-| 5 | Conversão completa (pilares/paredes, vigas, lajes, grids) | E2K completo gerado; aceite depende da importação no ETABS |
+| 5 | Conversão completa — edifício multi-pavimento | **concluída**: `tqs2etabs building` (TESTE: 8 stories, 99 barras, 89 áreas, 16 piers; 90 testes); aceite na importação |
 | 6 | Validação pós-exportação (readback) + relatório TQS × ETABS | E2K: releitura e comparação implementadas (`verify_export`); COM readback pendente |
 
 ## 17b. Regras adicionadas após a primeira importação no ETABS (2026-09-19)
@@ -626,6 +626,26 @@ Feedback do usuário sobre o modelo importado (itens A–D) virou regras explíc
 | Divisão das walls | `mapping._split_at_nodes` | Todo nó de viga/laje sobre o eixo divide o painel (junta explícita). | `split_walls_at_nodes` |
 
 Ordem do pipeline: eixos → normalização → snap transversal → extensão → **ponta da parede** → **vértices de laje** → **absorção** → **simplificação** → merge → grids → validação.
+
+## 17c. Multi-pavimento (Etapa 5, 2026-09-19)
+
+Implementado sobre a pasta `TESTE` (fundação + Tipo 1 ×5 + Tipo 2 + Cobertura). Fontes e regras em
+[docs/BUILDING_FILES.md](docs/BUILDING_FILES.md). Pontos de arquitetura:
+
+- `domain/building.py` (PlanDefinition, PisoDefinition, ConcreteClass, BuildingDefinition) e
+  `importers/tqs/building.py` (varredura: LDF/LST por planta, RESEST2, CONCRETO.DAT; planta de fundação detectada
+  por pilares `NAS` sem vigas).
+- Variantes do LDF encontradas e tratadas: 3º token do pilar é o **status** (`CON`/`NAS`/`MOR`), não material;
+  `R L/B` sem `ANG` (= 0) e sem `FCK`; polígono `G` sem `LAMINAS` (decomposição retilínea própria); tabela de
+  pisos do LST sem a coluna de material.
+- `geometry_engine/multi_story.py`: eixos dos pilares transladados para a planta de referência (decisão:
+  sem excentricidade entre lances). No TESTE os centroides já coincidem (0 translações).
+- `EtabsMapper` (mapping.py): objetos por planta com prefixo `<TAG>.`, atribuídos a cada story com o material
+  do piso; pontos compartilhados por coordenada; `SIMILARTO` para pisos repetidos; restrições na base.
+- Regras de alinhamento refinadas com este modelo: deslocamento para a ponta da parede é rejeitado se tirar a
+  viga do eixo de outro apoio (V1 colinear com P4/P7/P9/P13); deslocamentos ortogonais no mesmo nó são
+  compostos; apoio interior de viga (viga passando sobre a parede) também é levado ao eixo; vértice de laje que
+  é nó de viga pode deslizar ao longo da viga até o eixo da parede.
 
 ## 18. Decisões tomadas (2026-09-19)
 

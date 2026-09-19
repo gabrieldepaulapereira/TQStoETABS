@@ -61,6 +61,8 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
     for s in desc.stories:
         if s.is_base:
             put("STORIES - IN SEQUENCE FROM TOP", f'  STORY "{s.name}"  ELEV {n(s.elevation)} ')
+        elif s.similar_to:
+            put("STORIES - IN SEQUENCE FROM TOP", f'  STORY "{s.name}"  HEIGHT {n(s.height)} SIMILARTO "{s.similar_to}"  ')
         else:
             put("STORIES - IN SEQUENCE FROM TOP", f'  STORY "{s.name}"  HEIGHT {n(s.height)} MASTERSTORY "Yes"  ')
     put("GRIDS", f'  GRIDSYSTEM "{desc.grid_system}"  TYPE "CARTESIAN"  BUBBLESIZE {n(1.25)} ')
@@ -103,28 +105,31 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
         put("AREA CONNECTIVITIES", f'  AREA "{a.name}"  {kind}  {len(a.points)}  {pts}  {flags}  ')
 
     for p in desc.points:
-        put("POINT ASSIGNS", f'  POINTASSIGN  "{p.name}"  "{story}"  USERJOINT  "Yes"  ')
+        for st in (p.stories or (story,)):
+            put("POINT ASSIGNS", f'  POINTASSIGN  "{p.name}"  "{st}"  USERJOINT  "Yes"  ')
     for r in desc.restraints:
         put("POINT ASSIGNS", f'  POINTASSIGN  "{r.point}"  "{r.story}"  RESTRAINT "{r.dofs}"  ')
     for fr in desc.frames:
         rel = f'RELEASE "{fr.releases}"  ' if fr.releases else ""
-        if fr.kind == "COLUMN":
-            ang = f"ANG  {n(fr.angle)} " if abs(fr.angle) > 1e-9 else ""
-            put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}'
-                                f'CARDINALPT {fr.cardinal_point}  {ang}MINNUMSTA 3 AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
-        else:
-            put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{fr.story}"  SECTION "{fr.section}"  {rel}'
-                                f'CARDINALPT {fr.cardinal_point}  MAXSTASPC {n(0.5)} AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
+        for asg in fr.assignments:
+            if fr.kind == "COLUMN":
+                ang = f"ANG  {n(fr.angle)} " if abs(fr.angle) > 1e-9 else ""
+                put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{asg.story}"  SECTION "{asg.section}"  {rel}'
+                                    f'CARDINALPT {fr.cardinal_point}  {ang}MINNUMSTA 3 AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
+            else:
+                put("LINE ASSIGNS", f'  LINEASSIGN  "{fr.name}"  "{asg.story}"  SECTION "{asg.section}"  {rel}'
+                                    f'CARDINALPT {fr.cardinal_point}  MAXSTASPC {n(0.5)} AUTOMESH "YES"  MESHATINTERSECTIONS "YES"  ')
     for a in desc.areas:
-        if a.kind == "PANEL":
-            pier = f'PIER  "{a.pier}"  ' if a.pier else ""
-            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  {pier}OBJMESHTYPE "DEFAULT"  '
-                                f'ADDRESTRAINT "Yes"  CARDINALPOINT "MIDDLE"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
-        elif a.kind == "OPENING":
-            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  OPENING "Yes"  ')
-        else:
-            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  OBJMESHTYPE "DEFAULT"  '
-                                f'ADDRESTRAINT "No"  CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
+        for asg in a.assignments:
+            if a.kind == "PANEL":
+                pier = f'PIER  "{asg.pier}"  ' if asg.pier else ""
+                put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{asg.story}"  SECTION "{asg.section}"  {pier}OBJMESHTYPE "DEFAULT"  '
+                                    f'ADDRESTRAINT "Yes"  CARDINALPOINT "MIDDLE"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
+            elif a.kind == "OPENING":
+                put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{asg.story}"  OPENING "Yes"  ')
+            else:
+                put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{asg.story}"  SECTION "{asg.section}"  OBJMESHTYPE "DEFAULT"  '
+                                    f'ADDRESTRAINT "No"  CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
 
     put("LOAD PATTERNS", '  LOADPATTERN "DEAD"  TYPE  "Dead"  SELFWEIGHT  1')
     put("ANALYSIS OPTIONS",

@@ -114,6 +114,7 @@ class Column:
     material_ref: str | None = None
     fck: str | None = None
     flags: frozenset[str] = frozenset()
+    status: str | None = None                 # CON (continua) | NAS (nasce neste piso) | MOR (morre neste piso)
     tqs_attrs: Mapping[str, Any] = field(default_factory=dict)
     provenance: Provenance | None = None
 

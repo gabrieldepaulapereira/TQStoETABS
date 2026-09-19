@@ -1,8 +1,11 @@
-"""Mapeamento StructuralModel -> EtabsDescription (ARCHITECTURE.md 11.1).
+"""Mapeamento StructuralModel(s) -> EtabsDescription (ARCHITECTURE.md 11.1).
 
 Politicas de representacao (pilar-frame x parede, secoes, materiais, nomes) vivem aqui;
-nenhuma regra geometrica. O modelo de entrada deve ja ter passado pelo geometry_engine
-(Column.axes preenchidos, coordenadas normalizadas, grids gerados).
+nenhuma regra geometrica. Os modelos de entrada devem ja ter passado pelo geometry_engine.
+
+`EtabsMapper` acumula varias plantas: cada planta gera objetos (definidos uma vez) e os
+atribui aos pavimentos que a usam, com a secao/material de cada pavimento. Pontos sao
+compartilhados entre plantas por coordenada (mesmo ponto nos varios pavimentos).
 """
 
 from __future__ import annotations
@@ -11,12 +14,13 @@ import math
 import re
 import unicodedata
 
+from ...domain.building import ConcreteClass
 from ...domain.config import Config
-from ...domain.diagnostics import DiagnosticCollector, Source
-from ...domain.elements import Column, ColumnKind, NodeRole, RectSection
+from ...domain.diagnostics import Diagnostic, DiagnosticCollector, Source
+from ...domain.elements import ColumnKind, RectSection
 from ...domain.geometry import Point
 from ...domain.model import StructuralModel
-from .description import (EArea, EFrame, EFrameSection, EGrid, EMaterial, EPoint, ERestraint,
+from .description import (EArea, EAssign, EFrame, EFrameSection, EGrid, EMaterial, EPoint, ERestraint,
                           EShellSection, EStory, EtabsDescription)
 
 
@@ -98,183 +102,279 @@ def _trim_stubs(pieces: list[tuple[Point, Point, float]], model: StructuralModel
     return pieces, trimmed
 
 
+class EtabsMapper:
+    """Acumula plantas/pavimentos e produz a EtabsDescription."""
+
+    def __init__(self, config: Config, title: str, concrete_catalog: dict[str, ConcreteClass] | None = None) -> None:
+        self.config = config
+        self.opt = config.etabs
+        self.title = ascii_name(title) or "tqs2etabs"
+        self.catalog = concrete_catalog or {}
+        self.diag = DiagnosticCollector()
+        self.notes: list[str] = []
+        self.stories: list[EStory] = []
+        self.base: EStory | None = None
+        self.materials: dict[str, EMaterial] = {}
+        self.frame_sections: dict[str, EFrameSection] = {}
+        self.shell_sections: dict[str, EShellSection] = {}
+        self.points: dict[str, EPoint] = {}
+        self.point_stories: dict[str, set[str]] = {}
+        self._by_coord: list[tuple[Point, str]] = []
+        self._next_point = 1
+        self.node_to_point: dict[str, str] = {}
+        self.frames: list[EFrame] = []
+        self.areas: list[EArea] = []
+        self.restraints: list[ERestraint] = []
+        self.piers: list[str] = []
+        self.grids: dict[tuple[str, float], EGrid] = {}
+        self.tol = config.tolerances.node_merge
+
+    # ------------------------------------------------------------ pavimentos
+    def add_story(self, name: str, elevation: float, height: float, similar_to: str | None = None) -> str:
+        sname = ascii_name(name)
+        self.stories.append(EStory(sname, height, elevation, False, similar_to, similar_to is None))
+        return sname
+
+    def set_base(self, elevation: float) -> None:
+        self.base = EStory(self.opt.base_story_name, 0.0, round(elevation, 4), True)
+
+    # ---------------------------------------------------------- materiais
+    def material(self, name: str | None) -> str:
+        key = (name or self.opt.default_material).upper()
+        if key not in self.materials:
+            fck = _fck_from_name(key)
+            if fck is None:
+                self.diag.warning("EXP-W-MATERIAL", f"fck nao reconhecido em '{name}'; usando {self.opt.default_material}",
+                                  Source.EXPORTER)
+                return self.material(self.opt.default_material)
+            cat = self.catalog.get(key)
+            if cat and cat.e_secant_mpa:
+                e_mpa, src = cat.e_secant_mpa, "CONCRETO.DAT"
+            else:
+                e_mpa, src = concrete_e_modulus_nbr6118(fck), "NBR 6118 8.2.8"
+            self.materials[key] = EMaterial(key, fck, round(e_mpa * 1000, 0), self.opt.concrete_unit_weight, source=src)
+        return key
+
+    def frame_section(self, kind: str, depth: float, width: float, mat: str) -> str:
+        prefix = "B" if kind == "Beam" else "C"
+        name = f"{prefix}{_cm(width)}X{_cm(depth)}-{mat}"
+        self.frame_sections.setdefault(name, EFrameSection(name, mat, round(depth, 4), round(width, 4), kind))
+        return name
+
+    def shell_section(self, kind: str, thickness: float, mat: str, modeling: str) -> str:
+        suffix = "" if kind == "Wall" else ("-SH" if modeling == "ShellThin" else "-M")
+        name = f"{'W' if kind == 'Wall' else 'S'}{_cm(thickness)}-{mat}{suffix}"
+        self.shell_sections.setdefault(name, EShellSection(name, mat, round(thickness, 4), kind, modeling))
+        return name
+
+    # -------------------------------------------------------------- pontos
+    def point_for_coord(self, p: Point, key: str | None, stories: tuple[str, ...],
+                        preferred_name: str | None = None) -> str:
+        for q, name in self._by_coord:
+            if q.distance_to(p) <= self.tol:
+                self.point_stories[name].update(stories)
+                if key:
+                    self.node_to_point.setdefault(key, name)
+                return name
+        if preferred_name and preferred_name not in self.points:
+            name = preferred_name
+        else:
+            while str(self._next_point) in self.points:
+                self._next_point += 1
+            name = str(self._next_point)
+        if name.isdigit():
+            self._next_point = max(self._next_point, int(name) + 1)
+        self.points[name] = EPoint(name, p.x, p.y, key)
+        self.point_stories[name] = set(stories)
+        self._by_coord.append((p, name))
+        if key:
+            self.node_to_point[key] = name
+        return name
+
+    # -------------------------------------------------------------- planta
+    def add_plan(self, model: StructuralModel, story_names: tuple[str, ...], plan_key: str = "",
+                 materials_by_story: dict[str, dict[str, str]] | None = None, name_prefix: str = "",
+                 restrain_base: bool = False) -> None:
+        """Cria os objetos da planta e os atribui a `story_names` (de baixo para cima)."""
+        opt, cfg = self.opt, self.config
+        mats = materials_by_story or {}
+
+        def node_key(nid: str) -> str:
+            return f"{plan_key}:{nid}" if plan_key else nid
+
+        def point_for_node(nid: str) -> str:
+            n = model.node(nid)
+            preferred = None if plan_key else (re.sub(r"\D", "", nid) or nid)
+            return self.point_for_coord(n.point, node_key(nid), story_names, preferred)
+
+        for n in model.structural_nodes():
+            point_for_node(n.id)
+
+        def mat_for(story: str, kind: str, explicit: str | None) -> str:
+            if explicit:
+                return self.material(explicit)
+            return self.material(mats.get(story, {}).get(kind))
+
+        # ---------------------------------------------------- pilares/paredes
+        base_points: set[str] = set()
+        for col in model.columns.values():
+            oname = f"{name_prefix}{ascii_name(col.name)}"
+            if col.kind_hint == ColumnKind.WALL:
+                if not col.axes:
+                    self.diag.error("EXP-E-WALL-NO-AXES", f"Pilar {col.id} sem linhas de eixo; nao exportado",
+                                    Source.EXPORTER, refs=(col.id,))
+                    continue
+                pier = ascii_name(col.name) if opt.assign_piers else None
+                if pier and pier not in self.piers:
+                    self.piers.append(pier)
+                pieces = []
+                for seg in col.axes:
+                    pieces.extend(_split_at_nodes(seg, model, self.tol) if opt.split_walls_at_nodes
+                                  else [(seg.start, seg.end, seg.thickness)])
+                pieces, trimmed = _trim_stubs(pieces, model, self.tol, cfg.tolerances.trim_wall_stub_max)
+                for t in trimmed:
+                    self.notes.append(f"{plan_key or 'planta'}: toco de parede {col.id} de {t:.2f} m sem no eliminado")
+                for k, (pa, pb, thick) in enumerate(pieces, start=1):
+                    a = self.point_for_coord(pa, None, story_names)
+                    b = self.point_for_coord(pb, None, story_names)
+                    assigns = tuple(EAssign(s, self.shell_section("Wall", thick, mat_for(s, "pilares", col.fck), "ShellThin"), pier)
+                                    for s in story_names)
+                    name = f"{oname}-{k}" if len(pieces) > 1 else oname
+                    self.areas.append(EArea(name, "PANEL", (a, b, b, a), assigns, col.id))
+                    base_points.update((a, b))
+            else:
+                dec = cfg.tolerances.rounding_decimals
+                c = Point(round(col.centroid.x, dec), round(col.centroid.y, dec))
+                p = self.point_for_coord(c, None, story_names)
+                sec_geom = col.section
+                if isinstance(sec_geom, RectSection):
+                    dims = (sec_geom.length, sec_geom.width)
+                    angle = etabs_column_angle(sec_geom.angle_deg)
+                else:
+                    side = math.sqrt(col.area)
+                    dims = (side, side)
+                    angle = 0.0
+                    self.diag.warning("EXP-W-POLY-FRAME", f"Pilar {col.id} poligonal como frame: secao quadrada equivalente",
+                                      Source.EXPORTER, refs=(col.id,))
+                assigns = tuple(EAssign(s, self.frame_section("Column", dims[0], dims[1], mat_for(s, "pilares", col.fck)))
+                                for s in story_names)
+                self.frames.append(EFrame(oname, "COLUMN", p, p, assigns, angle, 5, "", col.id))
+                base_points.add(p)
+        if restrain_base:
+            for p in sorted(base_points, key=lambda s: (len(s), s)):
+                self.restraints.append(ERestraint(p, opt.base_story_name, opt.base_restraint))
+
+        # ---------------------------------------------------------- vigas
+        for beam in model.beams.values():
+            multi = len(beam.segments) > 1
+            for k, seg in enumerate(beam.segments, start=1):
+                if seg.depth <= 0 or seg.width <= 0:
+                    self.diag.error("EXP-E-BEAM-SECTION", f"{beam.id} trecho {k} sem secao; nao exportado",
+                                    Source.EXPORTER, refs=(beam.id,))
+                    continue
+                rel = ""
+                if opt.apply_releases:
+                    parts = []
+                    if beam.release_start and k == 1:
+                        parts += ["M2I", "M3I"]
+                    if beam.release_end and k == len(beam.segments):
+                        parts += ["M2J", "M3J"]
+                    rel = " ".join(parts)
+                name = f"{name_prefix}{ascii_name(beam.name)}" + (f"-{k}" if multi else "")
+                assigns = tuple(EAssign(s, self.frame_section("Beam", seg.depth, seg.width, mat_for(s, "vigas", None)))
+                                for s in story_names)
+                self.frames.append(EFrame(name, "BEAM", point_for_node(seg.start_node_id), point_for_node(seg.end_node_id),
+                                          assigns, 0.0, opt.beam_cardinal_point, rel, beam.id))
+        if not opt.apply_releases and any(b.release_start or b.release_end for b in model.beams.values()):
+            note = "ARE/ARD do TQS (NEEDS_REVIEW) nao aplicados como releases (etabs.apply_releases = false)."
+            if note not in self.notes:
+                self.notes.append(note)
+
+        # ---------------------------------------------------------- lajes
+        for slab in model.slabs.values():
+            modeling = "Membrane" if (slab.is_stair and cfg.policy.stair_area_type == "membrane") else "ShellThin"
+            pts = tuple(point_for_node(e.start_node_id) for e in slab.edges)
+            if len(pts) < 3:
+                self.diag.error("EXP-E-SLAB", f"{slab.id} com menos de 3 vertices; nao exportada", Source.EXPORTER,
+                                refs=(slab.id,))
+                continue
+            sname = f"{name_prefix}{ascii_name(slab.name)}"
+            assigns = tuple(EAssign(s, self.shell_section("Slab", slab.thickness, mat_for(s, "lajes", None), modeling))
+                            for s in story_names)
+            self.areas.append(EArea(sname, "FLOOR", pts, assigns, slab.id))
+            for k, hole in enumerate(slab.holes, start=1):
+                hpts = tuple(self.point_for_coord(p, None, story_names) for p in hole)
+                if len(set(hpts)) >= 3:
+                    self.areas.append(EArea(f"{sname}-O{k}", "OPENING", hpts,
+                                            tuple(EAssign(s, "") for s in story_names), slab.id))
+
+        # ---------------------------------------------------------- grids
+        for g in model.grids:
+            key = (g.direction, round(g.coordinate, 4))
+            self.grids.setdefault(key, EGrid(g.label, g.direction, g.coordinate))
+        unused = [n.id for n in model.nodes.values() if not n.is_structural]
+        if unused:
+            self.diag.info("EXP-I-NODES-SKIPPED", f"{plan_key or 'planta'}: {len(unused)} nos de carga/orfaos nao exportados",
+                           Source.EXPORTER)
+
+    # ------------------------------------------------------------ resultado
+    def build(self) -> tuple[EtabsDescription, tuple[Diagnostic, ...]]:
+        if self.config.policy.ignore_vertical_offsets:
+            self.notes.append("DFS de vigas e lajes ignorado: tudo no nivel do pavimento (decisao 18.5).")
+        assert self.base is not None, "set_base() nao chamado"
+        stories = tuple(sorted(self.stories, key=lambda s: -s.elevation)) + (self.base,)
+        points = tuple(EPoint(p.name, p.x, p.y, p.source_node,
+                              tuple(sorted(self.point_stories[p.name], key=lambda n: -self._story_elev(n))))
+                       for p in self.points.values())
+        desc = EtabsDescription(
+            title=self.title, units=("KN", "M", "C"), stories=stories, grid_system=self.opt.grid_system,
+            grids=self._renamed_grids(), materials=tuple(self.materials.values()),
+            frame_sections=tuple(self.frame_sections.values()), shell_sections=tuple(self.shell_sections.values()),
+            points=points, frames=tuple(self.frames), areas=tuple(self.areas), restraints=tuple(self.restraints),
+            piers=tuple(self.piers), notes=tuple(self.notes), node_to_point=dict(self.node_to_point))
+        self.diag.info("EXP-I-SUMMARY", "ETABS description: " + ", ".join(f"{k}={v}" for k, v in desc.counts().items()),
+                       Source.EXPORTER)
+        return desc, self.diag.as_tuple()
+
+    def _story_elev(self, name: str) -> float:
+        for s in self.stories:
+            if s.name == name:
+                return s.elevation
+        return -1e9
+
+    def _renamed_grids(self) -> tuple[EGrid, ...]:
+        """Grids de varias plantas unidos por coordenada e renomeados em ordem crescente."""
+        from ...geometry_engine.grids import grid_label
+        naming = self.config.grids
+        out = []
+        for direction in ("X", "Y"):
+            coords = sorted({k[1] for k in self.grids if k[0] == direction})
+            merged: list[float] = []
+            for c in coords:
+                if merged and c - merged[-1] <= self.config.tolerances.coordinate_cluster:
+                    continue
+                merged.append(c)
+            style = naming.x_style if direction == "X" else naming.y_style
+            prefix = naming.x_prefix if direction == "X" else naming.y_prefix
+            for i, c in enumerate(merged):
+                out.append(EGrid(grid_label(style, prefix, i, naming.start_index), direction, c))
+        return tuple(out)
+
+
 def build_description(model: StructuralModel, config: Config) -> tuple[EtabsDescription, tuple]:
-    opt = config.etabs
-    diag = DiagnosticCollector()
-    notes: list[str] = []
+    """Caso de uma planta / um pavimento (fluxo `export`)."""
     story_obj = next(iter(model.stories.values()))
-    story_name = ascii_name(story_obj.name)
     if story_obj.elevation is None or story_obj.height is None:
-        diag.warning("EXP-W-STORY", "Cota/pe-direito desconhecidos: usando cota 0 e altura 3,0 m", Source.EXPORTER)
         elev, height = 0.0, 3.0
     else:
         elev, height = story_obj.elevation, story_obj.height
-    stories = (EStory(story_name, height, elev), EStory(opt.base_story_name, 0.0, round(elev - height, 4), True))
-
-    # ---------------------------------------------------------- materiais
-    materials: dict[str, EMaterial] = {}
-
-    def material(name: str, source: str) -> str:
-        key = name.upper()
-        if key not in materials:
-            fck = _fck_from_name(key)
-            if fck is None:
-                diag.warning("EXP-W-MATERIAL", f"fck nao reconhecido em '{name}'; usando {opt.default_material}",
-                             Source.EXPORTER)
-                return material(opt.default_material, "config default")
-            e_mpa = concrete_e_modulus_nbr6118(fck)
-            materials[key] = EMaterial(key, fck, round(e_mpa * 1000, 0), opt.concrete_unit_weight, source=source)
-        return key
-
-    default_mat = material(opt.default_material, "config default (fck de vigas/lajes nao consta do TQS)")
-    notes.append(f"Vigas e lajes com material {default_mat} (config); fck de vigas/lajes nao existe no LDF/LST.")
-
-    frame_sections: dict[str, EFrameSection] = {}
-    shell_sections: dict[str, EShellSection] = {}
-
-    def frame_section(kind: str, depth: float, width: float, mat: str) -> str:
-        prefix = "B" if kind == "Beam" else "C"
-        name = f"{prefix}{_cm(width)}X{_cm(depth)}-{mat}"
-        frame_sections.setdefault(name, EFrameSection(name, mat, round(depth, 4), round(width, 4), kind))
-        return name
-
-    def shell_section(kind: str, thickness: float, mat: str, modeling: str) -> str:
-        suffix = "" if kind == "Wall" else ("-SH" if modeling == "ShellThin" else "-M")
-        name = f"{'W' if kind == 'Wall' else 'S'}{_cm(thickness)}-{mat}{suffix}"
-        shell_sections.setdefault(name, EShellSection(name, mat, round(thickness, 4), kind, modeling))
-        return name
-
-    # ------------------------------------------------------------- pontos
-    points: dict[str, EPoint] = {}
-    node_to_point: dict[str, str] = {}
-    by_coord: list[tuple[Point, str]] = []
-    tol = config.tolerances.node_merge
-    next_aux = max((int(re.sub(r"\D", "", n.id) or 0) for n in model.nodes.values()), default=0) + 1
-
-    def point_for_node(node_id: str) -> str:
-        if node_id in node_to_point:
-            return node_to_point[node_id]
-        n = model.node(node_id)
-        name = re.sub(r"\D", "", n.id) or n.id
-        points[name] = EPoint(name, n.x, n.y, n.id)
-        node_to_point[n.id] = name
-        by_coord.append((n.point, name))
-        return name
-
-    def point_for_coord(p: Point, purpose: str) -> str:
-        nonlocal next_aux
-        for q, name in by_coord:
-            if q.distance_to(p) <= tol:
-                return name
-        name = str(next_aux)
-        next_aux += 1
-        points[name] = EPoint(name, p.x, p.y, None)
-        by_coord.append((p, name))
-        notes.append(f"Ponto auxiliar {name} ({p.x:.2f}, {p.y:.2f}) criado para {purpose}")
-        return name
-
-    for n in model.structural_nodes():
-        point_for_node(n.id)
-
-    # ------------------------------------------------------ pilares/paredes
-    frames: list[EFrame] = []
-    areas: list[EArea] = []
-    restraints: list[ERestraint] = []
-    piers: list[str] = []
-    base_points: set[str] = set()
-
-    for col in model.columns.values():
-        mat = material(col.fck, "LDF FCK") if col.fck else default_mat
-        if col.kind_hint == ColumnKind.WALL:
-            if not col.axes:
-                diag.error("EXP-E-WALL-NO-AXES", f"Pilar {col.id} sem linhas de eixo; nao exportado", Source.EXPORTER,
-                           refs=(col.id,))
-                continue
-            pier = ascii_name(col.name) if opt.assign_piers else None
-            if pier:
-                piers.append(pier)
-            pieces = []
-            for seg in col.axes:
-                pieces.extend(_split_at_nodes(seg, model, tol) if opt.split_walls_at_nodes else [(seg.start, seg.end, seg.thickness)])
-            pieces, trimmed = _trim_stubs(pieces, model, tol, config.tolerances.trim_wall_stub_max)
-            for t in trimmed:
-                notes.append(f"Toco de parede {col.id} de {t:.2f} m sem no eliminado")
-            for k, (pa, pb, thick) in enumerate(pieces, start=1):
-                a = point_for_coord(pa, f"parede {col.id}")
-                b = point_for_coord(pb, f"parede {col.id}")
-                sec = shell_section("Wall", thick, mat, "ShellThin")
-                name = f"{ascii_name(col.name)}-{k}" if len(pieces) > 1 else ascii_name(col.name)
-                areas.append(EArea(name, "PANEL", (a, b, b, a), story_name, sec, pier, col.id))
-                base_points.update((a, b))
-        else:
-            sec_geom = col.section
-            c = col.centroid
-            p = point_for_coord(c, f"pilar {col.id}")
-            if isinstance(sec_geom, RectSection):
-                sec = frame_section("Column", sec_geom.length, sec_geom.width, mat)
-                angle = etabs_column_angle(sec_geom.angle_deg)
-            else:
-                side = math.sqrt(col.area)
-                sec = frame_section("Column", side, side, mat)
-                angle = 0.0
-                diag.warning("EXP-W-POLY-FRAME", f"Pilar {col.id} poligonal como frame: secao quadrada equivalente",
-                             Source.EXPORTER, refs=(col.id,))
-            frames.append(EFrame(ascii_name(col.name), "COLUMN", p, p, story_name, sec, angle, 5, "", col.id))
-            base_points.add(p)
-
-    for p in sorted(base_points, key=lambda s: (len(s), s)):
-        restraints.append(ERestraint(p, opt.base_story_name, opt.base_restraint))
-
-    # -------------------------------------------------------------- vigas
-    for beam in model.beams.values():
-        multi = len(beam.segments) > 1
-        for k, seg in enumerate(beam.segments, start=1):
-            if seg.depth <= 0 or seg.width <= 0:
-                diag.error("EXP-E-BEAM-SECTION", f"{beam.id} trecho {k} sem secao; nao exportado", Source.EXPORTER,
-                           refs=(beam.id,))
-                continue
-            sec = frame_section("Beam", seg.depth, seg.width, default_mat)
-            rel = ""
-            if opt.apply_releases:
-                parts = []
-                if beam.release_start and k == 1:
-                    parts += ["M2I", "M3I"]
-                if beam.release_end and k == len(beam.segments):
-                    parts += ["M2J", "M3J"]
-                rel = " ".join(parts)
-            name = f"{ascii_name(beam.name)}-{k}" if multi else ascii_name(beam.name)
-            frames.append(EFrame(name, "BEAM", point_for_node(seg.start_node_id), point_for_node(seg.end_node_id),
-                                 story_name, sec, 0.0, opt.beam_cardinal_point, rel, beam.id))
-    if not opt.apply_releases and any(b.release_start or b.release_end for b in model.beams.values()):
-        notes.append("ARE/ARD do TQS (NEEDS_REVIEW) nao aplicados como releases (etabs.apply_releases = false).")
-
-    # -------------------------------------------------------------- lajes
-    for slab in model.slabs.values():
-        modeling = "Membrane" if (slab.is_stair and config.policy.stair_area_type == "membrane") else "ShellThin"
-        sec = shell_section("Slab", slab.thickness, default_mat, modeling)
-        pts = tuple(point_for_node(e.start_node_id) for e in slab.edges)
-        if len(pts) < 3:
-            diag.error("EXP-E-SLAB", f"{slab.id} com menos de 3 vertices; nao exportada", Source.EXPORTER, refs=(slab.id,))
-            continue
-        areas.append(EArea(ascii_name(slab.name), "FLOOR", pts, story_name, sec, None, slab.id))
-        for k, hole in enumerate(slab.holes, start=1):
-            hpts = tuple(point_for_coord(p, f"abertura {slab.id}") for p in hole)
-            if len(set(hpts)) >= 3:
-                areas.append(EArea(f"{ascii_name(slab.name)}-O{k}", "OPENING", hpts, story_name, "", None, slab.id))
-    if config.policy.ignore_vertical_offsets:
-        notes.append("DFS de vigas e lajes ignorado: tudo no nivel do pavimento (decisao 18.5).")
-
-    grids = tuple(EGrid(g.label, g.direction, g.coordinate) for g in model.grids)
-    title = ascii_name(f"{model.project.building or ''} - {model.project.plan_name or ''}").strip(" -")
-    desc = EtabsDescription(
-        title=title or "tqs2etabs", units=("KN", "M", "C"), stories=stories, grid_system=opt.grid_system,
-        grids=grids, materials=tuple(materials.values()), frame_sections=tuple(frame_sections.values()),
-        shell_sections=tuple(shell_sections.values()), points=tuple(points.values()), frames=tuple(frames),
-        areas=tuple(areas), restraints=tuple(restraints), piers=tuple(piers), notes=tuple(notes),
-        node_to_point=node_to_point)
-    unused = [n.id for n in model.nodes.values() if not n.is_structural]
-    if unused:
-        diag.info("EXP-I-NODES-SKIPPED", f"{len(unused)} nos de carga/orfaos nao exportados", Source.EXPORTER)
-    diag.info("EXP-I-SUMMARY", "ETABS description: " + ", ".join(f"{k}={v}" for k, v in desc.counts().items()),
-              Source.EXPORTER)
-    return desc, diag.as_tuple()
+    title = f"{model.project.building or ''} - {model.project.plan_name or ''}".strip(" -")
+    mapper = EtabsMapper(config, title)
+    if story_obj.elevation is None:
+        mapper.diag.warning("EXP-W-STORY", "Cota/pe-direito desconhecidos: usando cota 0 e altura 3,0 m", Source.EXPORTER)
+    story_name = mapper.add_story(story_obj.name, elev, height)
+    mapper.set_base(elev - height)
+    mapper.notes.append(f"Vigas e lajes com material {config.etabs.default_material} (config); "
+                        "fck de vigas/lajes nao existe no LDF/LST.")
+    mapper.add_plan(model, (story_name,), plan_key="", restrain_base=True)
+    return mapper.build()

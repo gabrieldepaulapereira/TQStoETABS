@@ -1,0 +1,314 @@
+                   0   // Versão
+                   2   // (0)NB1-78 (1)NBR6118:2003 (2)NBR6118:2014 (3)CIRSOC (4)ACI 318-14
+        2.5000000000   // Peso específico em tf/m3
+        1.4000000000   // Minorador de resistência
+        0.2000000000   // Coeficiente de poisson
+        0.0000100000   // Coeficiente de dilatação térmica /oC
+        0.8500000000   // Relação padrão ECs/ECi
+        0.6500000000   // Relação ECs/ECi p/NB1-78
+                  16   // Número de fcks definidos
+C15
+       15.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+        0.0000000000   // Módulo de elasticidade inicial MPA
+        0.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   1   // (1) se concreto somente para fundações
+C20
+       20.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+        0.0000000000   // Módulo de elasticidade inicial MPA
+        0.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C25
+       25.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+        0.0000000000   // Módulo de elasticidade inicial MPA
+        0.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C30
+       30.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    36000.0000000000   // Módulo de elasticidade inicial MPA
+    36000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C35
+       35.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    37000.0000000000   // Módulo de elasticidade inicial MPA
+    37000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C40
+       40.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    38000.0000000000   // Módulo de elasticidade inicial MPA
+    38000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C45
+       45.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    40000.0000000000   // Módulo de elasticidade inicial MPA
+    40000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C50
+       50.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    40000.0000000000   // Módulo de elasticidade inicial MPA
+    40000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C55
+       55.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    42000.0000000000   // Módulo de elasticidade inicial MPA
+    42000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C60
+       60.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    42000.0000000000   // Módulo de elasticidade inicial MPA
+    42000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C65
+       65.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    44000.0000000000   // Módulo de elasticidade inicial MPA
+    44000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C70
+       70.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    45000.0000000000   // Módulo de elasticidade inicial MPA
+    45000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C75
+       75.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    46000.0000000000   // Módulo de elasticidade inicial MPA
+    46000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C80
+       80.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    46000.0000000000   // Módulo de elasticidade inicial MPA
+    46000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C85
+       85.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    47000.0000000000   // Módulo de elasticidade inicial MPA
+    47000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+C90
+       90.0000000000   // Resistência à compressão Fck em MPA
+        0.0000000000   // Resistência à tração média, MPA
+        0.0000000000   // Resistência à tração inferior, MPA
+        0.0000000000   // Resistência à tração superior, MPA
+    47000.0000000000   // Módulo de elasticidade inicial MPA
+    47000.0000000000   // Módulo de elasticidade secante MPA
+        0.0000000000   // Módulo de elasticidade transversal
+                   0   // (1) se concreto somente para fundações
+        1.0000000000   // Multiplicador do módulo inicial [C15]
+        1.0000000000   // Multiplicador do módulo inicial [C20]
+        1.0000000000   // Multiplicador do módulo inicial [C25]
+        1.0000000000   // Multiplicador do módulo inicial [C30]
+        1.0000000000   // Multiplicador do módulo inicial [C35]
+        1.0000000000   // Multiplicador do módulo inicial [C40]
+        1.0000000000   // Multiplicador do módulo inicial [C45]
+        1.0000000000   // Multiplicador do módulo inicial [C50]
+        1.0000000000   // Multiplicador do módulo inicial [C55]
+        1.0000000000   // Multiplicador do módulo inicial [C60]
+        1.0000000000   // Multiplicador do módulo inicial [C65]
+        1.0000000000   // Multiplicador do módulo inicial [C70]
+        1.0000000000   // Multiplicador do módulo inicial [C75]
+        1.0000000000   // Multiplicador do módulo inicial [C80]
+        1.0000000000   // Multiplicador do módulo inicial [C85]
+        1.0000000000   // Multiplicador do módulo inicial [C90]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C15]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C20]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C25]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C30]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C35]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C40]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C45]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C50]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C55]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C60]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C65]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C70]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C75]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C80]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C85]
+        1.0000000000   // Multiplicador concreto leve ACI-318[C90]
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+                   0   // 08-10-2020 Tipo do cimento
+        0.0000000000   // 08-10-2020 Tempo da cura úmida (dias)
+        0.0000000000   // 08-10-2020 Slump (mm)
+        0.0000000000   // 08-10-2020 Fração do agregado miúdo ()
+        0.0000000000   // 08-10-2020 Teor de ar ()
+        0.0000000000   // 08-10-2020 Teor de cimento (kg/m3)
+        0.0000000000   // 08-10-2020 Umidade relativa do ar
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.0000000000   // 06-03-2023 Carbono incorporado kgCO2/kg
+        0.1800000000   // Valor default - Carbono incorporado kgCO2/kg

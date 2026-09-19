@@ -61,7 +61,7 @@ class LdfBeamGeometry:
 class LdfColumnGeometry:
     name: str
     node: int
-    material: str | None
+    status: str | None          # CON = continua, NAS = nasce neste piso, MOR = morre neste piso
     flags: tuple[str, ...]      # CORTINA, FURADO, ...
     line: int = 0
 

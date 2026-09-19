@@ -1,0 +1,182 @@
+$------------------------------------------------------------------------------
+$     CAD/TQS - Modelador Estrutural
+$
+$     19/09/2026 - 18:30:14
+$     Pasta D:\Modelos TQS\PROJETOS EXTERNOS\MARQUISE\TESTE\0 - Fundação
+$     Pavimento 0 - Fundação  Projeto 4
+$     Edifício  TESTE       Projeto 1
+$     TEMPLATE
+$     TALLS SOLUTIONS
+$
+$     Arquivo LDF de descrição de plantas de formas.
+$     NÃO modifique este arquivo, pois ele será regravado
+$     sempre que a planta de formas for modificada através
+$     do Modelador Estrutural.
+$------------------------------------------------------------------------------
+
+DEFINE NLISTA     $ Suprime lista dos comandos LDF
+
+PROJETO 0
+$------------------------------------------------------------------------------
+GEOMETRIA
+$
+$     Escala desta planta
+$
+DEFINE ESCALA 50.00
+$
+$     Coordenadas de nós
+$
+$       Nó                 X              Y  
+$
+         1               15.000000,    787.500000
+         2               15.000000,   1525.000000
+         3              856.818182,    116.818182
+         4             3515.000000,    787.500000
+         5             3515.000000,   1525.000000
+         6              815.000000,   1700.000000
+         7             2715.000000,   1700.000000
+         8             1764.652144,   1835.000000
+         9             1765.000000,    985.000000
+        10             3380.000000,     15.000000
+        11              815.000000,    825.000000
+        12             2715.000000,    825.000000
+        13             2612.222222,     92.777778
+        14               15.000000,    538.904938
+        15               15.000000,   1231.419556
+        16             2715.000000,    462.584167
+        17             3515.000000,    452.058319
+        18             3515.000000,   1276.835938
+        19              150.000000,     15.000000
+$
+$     Geometria de vigas
+$
+$
+$     Geometria de pilares
+$
+  P1      8     NAS
+  P2      6     NAS
+  P3      7     NAS
+  P4      2     NAS
+  P5      5     NAS
+  P6      18    NAS
+  P7      15    NAS
+  P8      9     NAS
+  P9      1     NAS
+  P10     4     NAS
+  P11     11    NAS
+  P12     12    NAS
+  P13     14    NAS
+  P14     16    NAS
+  P15     17    NAS
+  P16     19    NAS
+  P17     3     NAS
+  P18     13    NAS
+  P19     10    NAS
+$
+$     Geometria de lajes
+$
+FIM
+
+$------------------------------------------------------------------------------
+DIMENSOES
+$
+$     Dimensões de vigas
+$
+$
+$     Dimensões de pilares
+$
+  P1     R 627.000/30.000  BASE 313.500000,15.000000
+  P2     R 30.000/200.000  BASE 15.000000,100.000000
+  P3     R 30.000/200.000  BASE 15.000000,100.000000
+  P4     R 30.000/150.000  BASE 15.000000,75.000000
+  P5     R 30.000/150.000  BASE 15.000000,75.000000
+  P6     R 30.000/87.500  BASE 15.000000,43.750000
+  P7     R 30.000/175.000  BASE 15.000000,87.500000
+  P8     R 500.000/30.000  BASE 250.000000,15.000000
+  P9     R 30.000/175.000  BASE 15.000000,87.500000
+  P10    R 30.000/175.000  BASE 15.000000,87.500000
+  P11    R 30.000/350.000  BASE 15.000000,175.000000
+  P12    R 30.000/350.000  BASE 15.000000,175.000000
+  P13    R 30.000/175.000  BASE 15.000000,87.500000
+  P14    R 30.000/87.500  BASE 15.000000,43.750000
+  P15    R 30.000/87.500  BASE 15.000000,43.750000
+  P16    R 300.000/30.000  BASE 150.000000,15.000000
+  P17    G 800.000000,0.000000; 1030.000000,0.000000; 1030.000000,30.000000; -
+         830.000000,30.000000; 830.000000,350.000000; 800.000000,350.000000; -
+         BASE 856.818182,116.818182
+  P18    G 2330.000000,0.000000; 2730.000000,-0.000000; -
+         2730.000000,350.000000; 2700.000000,350.000000; -
+         2700.000000,30.000000; 2330.000000,30.000000; -
+         BASE 2612.222222,92.777778
+  P19    R 300.000/30.000  BASE 150.000000,15.000000
+$
+$     Dimensões de lajes
+$
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 1
+$
+$     Caso com carregamentos 1 a 4
+$     Inclui cargas permanentes e acidentais
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+$
+$	Cargas em pilares
+$
+FIM
+
+$
+$     Desligamos a listagem de resultados para
+$     os carregamentos acima de 1
+$
+DEFINE NLISRES
+$------------------------------------------------------------------------------
+CARGAS CASO 2
+$
+$     Caso de carregamento de peso próprio
+$
+$ DEFINE PPLAJ	$ nao necessario
+$ DEFINE PPVIG	$ nao necessario
+$
+$	Cargas em pilares
+$
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 3
+$
+$     Caso de cargas permanentes
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+$
+$	Cargas em pilares
+$
+FIM
+
+$------------------------------------------------------------------------------
+CARGAS CASO 4
+$
+$     Caso de cargas acidentais
+$
+$
+$	Cargas em vigas
+$
+$
+$	Cargas em lajes
+$
+$
+$	Cargas em pilares
+$
+FIM
+

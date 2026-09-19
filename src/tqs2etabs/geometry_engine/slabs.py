@@ -118,9 +118,10 @@ def snap_slab_vertices_to_column_axes(model: StructuralModel, config: Config) ->
         t, col_id, slab_id = props[0]
         n = nodes[vid]
         if NodeRole.BEAM_AXIS in n.roles:
-            diag.warning("SLAB-W-VERTEX-ON-BEAM", f"No {vid} (viga) esta a {fmt(n.point.distance_to(t))} m do eixo de "
-                         f"{col_id}; nao movido pela regra de laje", Source.ENGINE, refs=(vid, col_id))
-            continue
+            if not _on_beam_lines(vid, t, model, tolc.node_merge):
+                diag.warning("SLAB-W-VERTEX-ON-BEAM", f"No {vid} (viga) esta a {fmt(n.point.distance_to(t))} m do eixo de "
+                             f"{col_id}; alvo fora da linha da viga; nao movido", Source.ENGINE, refs=(vid, col_id))
+                continue
         changes.append(ChangeRecord(vid, "xy", fmt_pt(n.point), fmt_pt(t), f"Vertice de {slab_id} levado ao eixo "
                                     f"do pilar {col_id}", RULE_VERTEX, "snap_slab_vertices_to_column_axes",
                                     None, col_id))
@@ -131,6 +132,22 @@ def snap_slab_vertices_to_column_axes(model: StructuralModel, config: Config) ->
                         changes=model.changes + tuple(changes))
     return StepResult("snap_slab_vertices_to_column_axes", new_model, tuple(changes), diag.as_tuple(),
                       {"nodes_moved": len(changes), "moved": moved})
+
+
+def _on_beam_lines(vid: str, target: Point, model: StructuralModel, tol: float) -> bool:
+    """O alvo esta sobre a linha de todas as vigas que passam pelo no (deslizamento ao longo da viga)."""
+    for b in model.beams.values():
+        if vid not in b.axis:
+            continue
+        k = b.axis.index(vid)
+        other = b.axis[k + 1] if k + 1 < len(b.axis) else b.axis[k - 1]
+        p, q = model.node(vid).point, model.node(other).point
+        u = _unit(p, q)
+        if u is None:
+            return False
+        if abs((target.x - p.x) * u[1] - (target.y - p.y) * u[0]) > tol:
+            return False
+    return True
 
 
 # ------------------------------------------------------------- (2) absorcao

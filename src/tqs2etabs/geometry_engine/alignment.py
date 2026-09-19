@@ -161,9 +161,9 @@ def extend_beam_ends(model: StructuralModel, config: Config) -> StepResult:
     for beam in model.beams.values():
         if len(beam.axis) < 2:
             continue
-        ends = {beam.axis[0]: beam.axis[1], beam.axis[-1]: beam.axis[-2]}   # extremidade -> vizinho
+        axis = beam.axis
         for sup in beam.supports:
-            if sup.kind != SupportKind.COLUMN or sup.node_id not in ends:
+            if sup.kind != SupportKind.COLUMN or sup.node_id not in axis:
                 continue
             col = model.columns.get(sup.ref_id or "")
             if col is None:
@@ -171,11 +171,17 @@ def extend_beam_ends(model: StructuralModel, config: Config) -> StepResult:
                            Source.ENGINE, refs=(beam.id,))
                 continue
             node = model.node(sup.node_id).point
-            neighbor = model.node(ends[sup.node_id]).point
-            u = _dir(neighbor, node)          # sentido "para fora" da viga
-            if u is None:
-                continue
-            res = _end_target(node, u, col, tolc.beam_column_snap, tolc.rounding_decimals)
+            k = axis.index(sup.node_id)
+            # direcoes a testar: extremidade -> para fora; no interior -> ao longo dos dois trechos vizinhos
+            neighbors = [axis[k - 1]] if k == len(axis) - 1 else ([axis[k + 1]] if k == 0 else [axis[k - 1], axis[k + 1]])
+            res = None
+            for nb in neighbors:
+                u = _dir(model.node(nb).point, node) if k in (0, len(axis) - 1) else _dir(node, model.node(nb).point)
+                if u is None:
+                    continue
+                cand = _end_target(node, u, col, tolc.beam_column_snap, tolc.rounding_decimals)
+                if cand is not None and (res is None or cand[1] < res[1]):
+                    res = cand
             if res is None:
                 diag.warning("ALIGN-W-NO-AXIS", f"{beam.id} no {sup.node_id}: nenhuma linha de eixo de {col.id} "
                              "alcancavel na direcao da viga", Source.ENGINE, refs=(beam.id, col.id))
@@ -229,6 +235,16 @@ def extend_beam_ends(model: StructuralModel, config: Config) -> StepResult:
 RULE_WALL_END = "column-axis-priority/wall-end-snap"
 
 
+def _dist_to_segment(p: Point, seg: AxisSegment) -> float:
+    ax, ay, bx, by = seg.start.x, seg.start.y, seg.end.x, seg.end.y
+    dx, dy = bx - ax, by - ay
+    ll = dx * dx + dy * dy
+    if ll == 0:
+        return p.distance_to(seg.start)
+    t = max(0.0, min(1.0, ((p.x - ax) * dx + (p.y - ay) * dy) / ll))
+    return p.distance_to(Point(ax + t * dx, ay + t * dy))
+
+
 def _wall_true_ends(col: Column, tol: float) -> list[Point]:
     """Extremidades reais das linhas de eixo (pontos que pertencem a um unico segmento)."""
     pts: list[Point] = []
@@ -280,7 +296,27 @@ def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResul
                 cands.append((s, sup.ref_id, sup.node_id))
         if not cands:
             continue
-        options = sorted({round(s, 6) for s, _, _ in cands}, key=abs)
+
+        def keeps_supports(s: float) -> bool:
+            """Nenhum apoio em pilar da viga pode sair do eixo do seu pilar com o deslocamento."""
+            for sup in beam.supports:
+                if sup.kind != SupportKind.COLUMN:
+                    continue
+                col = model.columns.get(sup.ref_id or "")
+                if col is None or col.kind_hint != ColumnKind.WALL or not col.axes:
+                    continue
+                p = model.node(sup.node_id).point
+                q = Point(p.x + s * nrm[0], p.y + s * nrm[1])
+                d = min(_dist_to_segment(q, seg) for seg in col.axes)
+                if d > tolc.node_merge:
+                    return False
+            return True
+
+        options = [s for s in sorted({round(s, 6) for s, _, _ in cands}, key=abs) if keeps_supports(s)]
+        if not options:
+            diag.info("ALIGN-I-WALL-END-SKIPPED", f"{beam.id}: deslocamento para ponta de parede tiraria a viga do eixo "
+                      "de outro apoio; mantida", Source.ENGINE, refs=(beam.id,))
+            continue
         def worst(s: float) -> float:
             return max(abs(s - c[0]) for c in cands)
         best = min(options, key=lambda s: (round(worst(s), 6), abs(s)))
@@ -289,9 +325,7 @@ def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResul
         ref = next(c[1] for c in cands if abs(c[0] - best) < 1e-9)
         beam_shift[beam.id] = (best, ref)
         for nid in beam.axis:
-            p = model.node(nid).point
-            t = Point(round_to(p.x + best * nrm[0], dec), round_to(p.y + best * nrm[1], dec))
-            node_targets.setdefault(nid, []).append((t, ref, beam.id))
+            node_targets.setdefault(nid, []).append(((best * nrm[0], best * nrm[1]), ref, beam.id))
         if worst(best) > tolc.node_merge:
             diag.warning("ALIGN-W-WALL-END-RESIDUAL", f"{beam.id}: deslocada {fmt(best)} m para a ponta de {ref}; "
                          f"residuo de {fmt(worst(best))} m em outro apoio", Source.ENGINE, refs=(beam.id, ref))
@@ -300,14 +334,28 @@ def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResul
     changes: list[ChangeRecord] = []
     moved: dict[str, float] = {}
     for nid, props in node_targets.items():
-        targets = {(t.x, t.y) for t, _, _ in props}
-        if len(targets) > 1:
+        # compoe deslocamentos ortogonais (vigas perpendiculares no mesmo no); conflito se paralelos e diferentes
+        total = [0.0, 0.0]
+        conflict = False
+        for (vx, vy), _, _ in props:
+            for (wx, wy), _, _ in props:
+                dot = vx * wx + vy * wy
+                if abs(dot) > 1e-9 and (abs(vx - wx) > 1e-6 or abs(vy - wy) > 1e-6):
+                    conflict = True
+        seen: list[tuple[float, float]] = []
+        for (vx, vy), _, _ in props:
+            if not any(abs(vx - sx) < 1e-6 and abs(vy - sy) < 1e-6 for sx, sy in seen):
+                seen.append((vx, vy))
+                total[0] += vx
+                total[1] += vy
+        if conflict:
             diag.warning("ALIGN-W-CONFLICT", f"No {nid}: deslocamentos para ponta de parede conflitantes "
-                         f"{[fmt_pt(t) for t, _, _ in props]}; nao movido", Source.ENGINE,
+                         f"{[(round(v[0], 3), round(v[1], 3)) for v, _, _ in props]}; nao movido", Source.ENGINE,
                          refs=(nid,) + tuple({b for _, _, b in props}))
             continue
-        target, ref, beam_id = props[0]
         n = nodes[nid]
+        target = Point(round_to(n.x + total[0], dec), round_to(n.y + total[1], dec))
+        ref = props[0][1]
         if n.point.distance_to(target) < 1e-9:
             continue
         beams = sorted({b for _, _, b in props})

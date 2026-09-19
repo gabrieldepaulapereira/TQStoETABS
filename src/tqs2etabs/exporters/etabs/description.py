@@ -1,7 +1,8 @@
 """Descricao neutra de um modelo ETABS (o que sera criado), independente do meio
-(arquivo .e2k ou API COM). Produzida por `mapping.build_description`.
+(arquivo .e2k ou API COM). Produzida por `mapping.EtabsMapper`.
 
-Unidades: kN, m, C. Coordenadas em planta; o pavimento e atribuido no objeto.
+Unidades: kN, m, C. Coordenadas em planta; objetos (LINE/AREA) sao definidos uma vez
+pelos pontos e atribuidos a um ou mais pavimentos (`assignments`), como no E2K.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ class EStory:
     height: float          # 0 para a base
     elevation: float
     is_base: bool = False
+    similar_to: str | None = None    # pavimento tipo: repete o mestre
+    master: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +35,7 @@ class EMaterial:
     unit_weight: float     # kN/m3
     poisson: float = 0.2
     thermal: float = 1e-5
-    source: str = ""       # "LDF FCK" | "config default"
+    source: str = ""       # "CONCRETO.DAT" | "NBR 6118" ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +61,15 @@ class EPoint:
     name: str
     x: float
     y: float
-    source_node: str | None    # id do no do modelo (None = ponto auxiliar de parede)
+    source_node: str | None        # "<plan>:<no>" do primeiro uso (None = ponto auxiliar)
+    stories: tuple[str, ...] = ()  # pavimentos em que o ponto e usado (POINTASSIGN)
+
+
+@dataclass(frozen=True, slots=True)
+class EAssign:
+    story: str
+    section: str
+    pier: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,12 +78,19 @@ class EFrame:
     kind: str              # BEAM | COLUMN
     point_i: str
     point_j: str
-    story: str
-    section: str
+    assignments: tuple[EAssign, ...]
     angle: float = 0.0
     cardinal_point: int = 8
     releases: str = ""     # ex.: "M2I M3I M2J M3J"
     source: str = ""       # elemento TQS de origem
+
+    @property
+    def story(self) -> str:
+        return self.assignments[0].story
+
+    @property
+    def section(self) -> str:
+        return self.assignments[0].section
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,10 +98,20 @@ class EArea:
     name: str
     kind: str              # PANEL | FLOOR | OPENING (escrito como FLOOR + OPENING "Yes")
     points: tuple[str, ...]
-    story: str
-    section: str
-    pier: str | None = None
+    assignments: tuple[EAssign, ...]
     source: str = ""
+
+    @property
+    def story(self) -> str:
+        return self.assignments[0].story
+
+    @property
+    def section(self) -> str:
+        return self.assignments[0].section
+
+    @property
+    def pier(self) -> str | None:
+        return self.assignments[0].pier
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,11 +137,15 @@ class EtabsDescription:
     restraints: tuple[ERestraint, ...]
     piers: tuple[str, ...]
     notes: tuple[str, ...] = ()
-    node_to_point: dict[str, str] = field(default_factory=dict)
+    node_to_point: dict[str, str] = field(default_factory=dict)   # "<plan>:<no>" -> ponto (single: "<no>")
 
     @property
     def story(self) -> EStory:
         return next(s for s in self.stories if not s.is_base)
+
+    @property
+    def story_names(self) -> tuple[str, ...]:
+        return tuple(s.name for s in self.stories if not s.is_base)
 
     def counts(self) -> dict[str, int]:
         return {
@@ -125,5 +157,7 @@ class EtabsDescription:
             "walls": sum(1 for a in self.areas if a.kind == "PANEL"),
             "slabs": sum(1 for a in self.areas if a.kind == "FLOOR"),
             "openings": sum(1 for a in self.areas if a.kind == "OPENING"),
+            "frame_assignments": sum(len(f.assignments) for f in self.frames),
+            "area_assignments": sum(len(a.assignments) for a in self.areas),
             "restraints": len(self.restraints), "piers": len(self.piers),
         }

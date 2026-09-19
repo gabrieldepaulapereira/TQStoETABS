@@ -111,7 +111,7 @@ def build_model(ldf: LdfDocument, lst: LstDocument | None = None,
             reference_node_id=_node_id(geo.node), kind_hint=kind,
             laminas=tuple(_poly(l) for l in dims.laminas),
             section_above=_poly(dims.psu) if dims.psu else None,
-            material_ref=geo.material, fck=dims.fck, flags=flags,
+            material_ref=None, fck=dims.fck, flags=flags, status=geo.status,
             tqs_attrs={"DSC": dims.dsc, "kind": dims.kind, "unknown": dims.unknown_tokens},
             provenance=Provenance(src, name, {"node": geo.node, "base_cm": dims.base,
                                               "angle": dims.angle_deg, "L_cm": dims.length_cm,
@@ -294,12 +294,13 @@ def build_model(ldf: LdfDocument, lst: LstDocument | None = None,
 def _build_column_section(name: str, dims: LdfColumnDimensions, node_cm: Pair,
                           diag: DiagnosticCollector):
     if dims.kind == "R":
-        if None in (dims.length_cm, dims.width_cm, dims.angle_deg) or dims.base is None:
-            diag.error("BUILD-E-COLUMN-R", f"Pilar {name} R incompleto (L/B, ANG ou BASE ausentes)",
+        if None in (dims.length_cm, dims.width_cm) or dims.base is None:
+            diag.error("BUILD-E-COLUMN-R", f"Pilar {name} R incompleto (L/B ou BASE ausentes)",
                        Source.BUILDER, refs=(name,))
             return None
-        ox, oy = rect_origin_from_reference(node_cm, dims.base, dims.angle_deg)
-        return RectSection(dims.length_cm * CM_TO_M, dims.width_cm * CM_TO_M, dims.angle_deg,
+        angle = dims.angle_deg if dims.angle_deg is not None else 0.0   # ANG omitido = 0 (L ao longo de X)
+        ox, oy = rect_origin_from_reference(node_cm, dims.base, angle)
+        return RectSection(dims.length_cm * CM_TO_M, dims.width_cm * CM_TO_M, angle,
                            Point(ox * CM_TO_M, oy * CM_TO_M))
     if dims.kind == "G":
         if not dims.polygon or len(dims.polygon) < 3:

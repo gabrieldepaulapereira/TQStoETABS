@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .application.analyze import analyze, format_summary, model_to_json
+from .application.building import convert_building, format_building_report
 from .application.export import export_e2k, format_export_report
 from .application.normalize import format_audit_report, normalize
 from .domain.config import load_config
@@ -46,6 +47,13 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("-o", "--out", type=Path, required=True, help="arquivo .e2k de saida")
     ex.add_argument("--report", type=Path, default=None, help="grava o relatorio completo em arquivo texto")
 
+    bl = sub.add_parser("building", help="pasta do edificio TQS -> modelo ETABS completo (.e2k)")
+    bl.add_argument("folder", type=Path)
+    bl.add_argument("--config", type=Path, default=None)
+    bl.add_argument("-o", "--out", type=Path, required=True, help="arquivo .e2k de saida")
+    bl.add_argument("--report", type=Path, default=None)
+    bl.add_argument("-v", "--verbose", action="store_true", help="inclui a auditoria de cada planta")
+
     args = ap.parse_args(argv)
     if args.cmd == "analyze":
         if not args.ldf.exists():
@@ -80,6 +88,16 @@ def main(argv: list[str] | None = None) -> int:
         lst = args.lst if args.lst else _guess_lst(args.ldf)
         result = export_e2k(args.ldf, lst, args.out, load_config(args.config))
         text = format_export_report(result)
+        print(text)
+        if args.report:
+            args.report.write_text(text, encoding="utf-8")
+        return 1 if result.has_errors else 0
+    if args.cmd == "building":
+        if not args.folder.is_dir():
+            print(f"Pasta nao encontrada: {args.folder}", file=sys.stderr)
+            return 2
+        result = convert_building(args.folder, args.out, load_config(args.config))
+        text = format_building_report(result, verbose=args.verbose)
         print(text)
         if args.report:
             args.report.write_text(text, encoding="utf-8")

@@ -207,9 +207,11 @@ class _Parser:
             elif _BEAM_RE.fullmatch(head) and len(tok) > 1 and tok[1].upper() == "EIXO":
                 self._beam_geometry(tok, line)
             elif _COL_RE.fullmatch(head) and len(tok) > 1 and tok[1].isdigit():
+                status = tok[2].upper() if len(tok) > 2 else None
+                if status not in (None, "CON", "NAS", "MOR"):
+                    self._warn("PARSE-W-COLUMN-STATUS", f"Pilar {head}: status desconhecido '{status}'", line)
                 self.columns[head] = LdfColumnGeometry(
-                    name=head, node=int(tok[1]),
-                    material=tok[2] if len(tok) > 2 else None,
+                    name=head, node=int(tok[1]), status=status,
                     flags=tuple(t.upper() for t in tok[3:]), line=line.number)
             elif _SLAB_RE.fullmatch(head) and "AREA" in [t.upper() for t in tok]:
                 self._slab_geometry(tok, line)

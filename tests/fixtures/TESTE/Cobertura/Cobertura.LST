@@ -1,0 +1,535 @@
+
+------------------------------------------------------------------------------
+TQS Formas 26   - Processamento de arquivo LDF 19/09/26 18:36:09
+FJG REALTY PARTICIPACOES S.A.           
+RUA 2300, 190                           
+15.543.172/0001-89                     17402A01
+D:\Modelos TQS\PROJETOS EXTERNOS\MARQUISE\TESTE\Cobertura
+------------------------------------------------------------------------------
+
+       1> $------------------------------------------------------------------------------
+       2> $     CAD/TQS - Modelador Estrutural
+       3> $
+       4> $     19/09/2026 - 18:36:09
+       5> $     Pasta D:\Modelos TQS\PROJETOS EXTERNOS\MARQUISE\TESTE\Cobertura
+       6> $     Pavimento Cobertura   Projeto 7
+       7> $     Edifício  TESTE       Projeto 1
+       8> $     TEMPLATE
+       9> $     TALLS SOLUTIONS
+      10> $
+      11> $     Arquivo LDF de descrição de plantas de formas.
+      12> $     NÃO modifique este arquivo, pois ele será regravado
+      13> $     sempre que a planta de formas for modificada através
+      14> $     do Modelador Estrutural.
+      15> $------------------------------------------------------------------------------
+      16> 
+      17> DEFINE NLISTA     $ Suprime lista dos comandos LDF
+
+Planta lida do edifício
+=======================
+Edifício ..... TESTE
+               Projeto    1
+Planta ....... Cobertura
+               Projeto    7
+Título geral.. TEMPLATE
+Cliente ...... TALLS SOLUTIONS
+Título planta. Cobertura
+
+
+
+Definição de Pisos
+------------------
+
+Piso    Título           Cota        P.D.      Seção
+                          m           m       
+ 7     Cobertura        20.95         3.0      1    CON        
+
+
+Quantitativos
+-------------
+
+Elemento     Área        Área de    Volume de     Comprimento     Comprimento
+           Estruturada    formas     concreto          linear      médio vãos
+              (m2)         (m2)         (m3)             (m)             (m)     
+   V4          3.90        14.88         1.95           12.70           12.70
+   V5          2.82        10.17         1.41            9.25            9.25
+   V6          5.43        18.38         2.71           18.40           6.133
+   V7          4.11        15.07         2.05           13.70            6.85
+   V8          5.43        18.38         2.71           18.40           6.133
+   V9           .90         9.30         1.35            3.00            3.00
+   V10         2.82        10.17         1.41            9.25            9.25
+   V11          .64         6.59          .95           2.125           1.063
+          ---------    ---------    ---------   -------------   -------------
+              26.04       102.95        14.56          86.825           6.202
+
+                                                 Volume de
+                                                 topo (m3)    
+   P8          1.50        31.80         4.50          .75
+   P11         1.05        22.80         3.15         1.58
+   P12         1.05        22.80         3.15         1.58
+   P14          .26         7.05          .79          .39
+   P17         1.65        34.80         4.95         2.48
+   P18         2.16        45.00         6.48         3.24
+          ---------    ---------    ---------    ---------
+               7.67       164.25        23.02        10.01
+
+   L2         19.86        19.86         3.97
+   L3         20.55        20.55         4.11
+   L4         19.86        19.86         3.97
+   L5         19.86        19.86         3.97
+   L6         20.55        20.55         4.11
+   L7         19.86        19.86         3.97
+          ---------    ---------    ---------
+             120.56       120.56        24.11
+
+          ---------    ---------    ---------
+Total        154.27       387.76        61.69                              
+
+Espessura média das lajes =           40 cm                    
+
+
+Legenda
+--------
+Área Estruturada   Área estimada de referência para medição do projeto 
+                   estrutural. Soma da área em planta de vigas, pilares e 
+                   lajes, exceto furos com menos de     .50 m2.
+Área de formas     Área estimada para formas de madeira, considerando fundo
+                   das lajes e vigas, laterais de vigas e de pilares.
+Volume de concreto Somatória aproximada dos volumes de vigas, pilares e lajes.
+Comprimento linear Medida das distâncias entre faces de apoios de vigas, 
+                   considerando vão estrutural.
+Comprimento médio  Comprimento médio dos vãos estruturais de vigas.
+Volume de topo     Volume estimado na região do pilar entre as faces mais
+                   altas e baixas de viga e lajes que apoiam no pilar.
+Espessura média    Volume total concreto dividido pela área estruturada, 
+das lajes          sem considerar região de cortinas.
+
+
+
+
+---------------------------------------------------------
+Cargas - Caso de carregamento    1
+---------------------------------------------------------
+
+
+Tipos de cargas
+---------------
+Nome         Perma    Aciden    Unid    Descrição
+
+CONCRETO      2.50       .00    tf/m3   Peso específico do concreto
+
+
+Cargas sobre as lajes
+---------------------
+CDist      Cargas distribuídas permanentes e acidentais, tf/m2   
+PP         Peso próprio, tf/m2   
+
+     Laje      CDist          PP
+        2      .400         .500
+        3      .400         .500
+        4      .400         .500
+        5      .400         .500
+        6      .400         .500
+        7      .400         .500
+
+
+Influência das lajes
+--------------------
+Tipo              (R) Retangular (G) Genérica
+P                 Cargas verticais na laje, tf      
+H                 Espessura da laje, cm      
+área              Área da laje onde foi distribuída carga, m2      
+Trecho            Trecho da laje que recebeu parcela de carga
+Influ             Parcela relativa de carga recebida pelo trecho
+                  (E) trecho engastado
+Carga             Parcela total da carga sobre o trecho, tf      
+Compr             Comprimento do trecho, cm      
+Carga/tr          Carga no trecho, por unidade de comprimento, tf/m    
+
+Laje    2   Tipo G  P=   18.27   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.30   15 V8    E .535      9.78            700      1.40
+                                  10 V10     .078      1.43            290       .49
+                                   6 V7      .309      5.65            700       .81
+                                   5 P11     .078      1.42            290       .49
+***001 AVISO: DISEIX/DISCIN não possível p/Laje    3; adotado DISNOS
+
+Laje    3   Tipo G  P=   18.51   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.56   17 P17     .001       .02             21       .07
+                                  13 V6    E .431      7.97            700      1.14
+                                   9 V10     .069      1.27            330       .39
+                                  10 V8    E .431      7.98            715      1.12
+                                  15 V9      .068      1.26            315       .40
+
+Laje    4   Tipo G  P=   18.01   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.02   21 P17     .030       .54             66       .81
+                                   1 V4      .278      5.01            619       .81
+                                   2 V10     .080      1.44            290       .50
+                                   9 V6    E .532      9.59            685      1.40
+                                  13 P17     .080      1.44            290       .50
+
+Laje    5   Tipo G  P=   18.13   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.14    3 V4      .308      5.59            685       .82
+                                   4 P18     .080      1.45            290       .50
+                                  14 V6    E .532      9.65            685      1.41
+                                  11 V5      .080      1.45            290       .50
+***002 AVISO: DISEIX/DISCIN não possível p/Laje    6; adotado DISNOS
+
+Laje    6   Tipo G  P=   18.51   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.56   11 V6    E .431      7.97            700      1.14
+                                  14 P18     .000       .01             21       .04
+                                  18 V11     .024       .45            113       .40
+                                  19 V11     .044       .81            202       .40
+                                  16 V8    E .431      7.98            715      1.12
+                                  12 V5      .069      1.28            330       .39
+
+Laje    7   Tipo G  P=   18.27   Trecho     Influ     Carga          Compr  Carga/tr
+ H=            20 área=   20.30   12 V8    E .535      9.78            700      1.40
+                                  16 P12     .078      1.43            290       .49
+                                   8 V7      .309      5.65            700       .81
+                                   7 V5      .078      1.42            290       .49
+
+
+Cargas nos pilares
+------------------
+Carga da laje     Carga de apoio direto de lajes sobre pilar, 
+                  obtida por processo simplificado, tf      
+MX, MY            Momentos impostos pelo usuário, tfm     
+Peso Próprio      Carga de peso próprio no lance, tf      
+CL+PP             Soma da carga da laje com peso próprio no lance, tf      
+
+Pilar   Carga da             MX      MY   Peso Próprio / pisos
+        laje                                   7
+
+  8        .27              .00     .00    11.25
+                                  CL+PP    11.52
+
+ 11       1.98              .00     .00     7.88
+                                  CL+PP     9.85
+
+ 12       1.98              .00     .00     7.88
+                                  CL+PP     9.86
+
+ 14        .35              .00     .00     1.97
+                                  CL+PP     2.32
+
+ 17       3.07              .00     .00    12.38
+                                  CL+PP    15.45
+
+ 18       4.47              .00     .00    16.20
+                                  CL+PP    20.67
+
+
+
+Cargas aplicadas nas vigas
+--------------------------
+VÃO               Número do vão da viga (1..)
+/L                Comprimento da viga, cm      
+/B                Largura da seção retangular, cm      
+/H                Altura da seção retangular, cm      
+DISTR.PMAX        Carga vertical distribuída em todo o vão, tf/m    
+PARC.DIST.PMAX    Carga vertical distribuída entre dois pontos, tf/m    
+TORSR.PAR.DIST    Torsor distribuído em toda a viga, tfm/m   
+REAC.IND.PMAX     Valor de carga indireta em viga, quando disponível, tf      
+INÍCIO            Posição de início de distribuição, m       
+COMPR             Comprimento da carga distribuída
+CONCENTR.PMAX     Carga concentrata, tf      
+APLIC             Posição de aplicação de carga concentrada, m       
+BW AP             Largura da viga que apoia na viga atual, m       
+D.VER             Diferença entre faces de apoio, m       
+VIGA              Número da viga que apoia na viga atual
+APOIO             Número do apoio da viga que apoia
+PILAR             Número do pilar que apoia na viga atual
+Apoio             Número do apoio da viga atual (1..)
+Largura           Largura do vão, m       
+Excen             Excentricidade do apoio da viga em relação centro do pilar, m       
+HCS               Altura da laje superior, m       
+HCI               Altura da laje inferior, m       
+DFSE              Rebaixo vertical em relação ao nível do pavimento, m       
+DFLE              Distância da face esquerda à um eixo de referência, m       
+TPS               Código da seção transversal do TQS Vigas
+***003 AVISO: Não há cargas de alvenaria na viga    4
+
+Cargas nos vãos da VIGA    4
+----------------------------
+
+VÃO= 1 /L=          1615 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=           .81   INÍCIO=          1.00   COMPR=          5.15
+       1- PARC.DIST.PMAX=           .82   INÍCIO=         10.85   COMPR=          3.45
+       1- PARC.DIST.PMAX=           .38   INÍCIO=          1.00   COMPR=         13.30
+       1- REAC.IND. PMAX=           .00   APLIC.=          6.15
+                   BW AP=           .30   D.VER =           .50   VIGA=   10   APOIO=    1
+       1- REAC.IND. PMAX=           .00   APLIC.=         10.85
+                   BW AP=           .30   D.VER =           .50   VIGA=    5   APOIO=    1
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1          2.30          1.00           .00           .00           .25           .15   1
+    2          4.00          1.85
+***004 AVISO: Não há cargas de alvenaria na viga    5
+
+Cargas nos vãos da VIGA    5
+----------------------------
+
+VÃO= 1 /L=           970 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=           .50   INÍCIO=           .00   COMPR=          3.20
+       1- PARC.DIST.PMAX=           .39   INÍCIO=          3.20   COMPR=          3.30
+       1- PARC.DIST.PMAX=           .49   INÍCIO=          6.50   COMPR=          3.20
+       1- PARC.DIST.PMAX=           .38   INÍCIO=           .00   COMPR=          9.70
+       1- REAC.IND. PMAX=           .00   APLIC.=          3.20
+                   BW AP=           .30   D.VER =           .50   VIGA=    6   APOIO=    3
+       1- REAC.IND. PMAX=           .00   APLIC.=          6.50
+                   BW AP=           .30   D.VER =           .50   VIGA=    8   APOIO=    3
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1           .30           .00           .20           .00           .25           .15   5
+    2           .30           .00
+***005 AVISO: Não há cargas de alvenaria na viga    6
+
+Cargas nos vãos da VIGA    6
+----------------------------
+
+VÃO= 1 /L=           715 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=          2.91   INÍCIO=           .00   COMPR=          7.15
+
+VÃO= 2 /L=           470 /B=            30 /H=            50
+       2- PARC.DIST.PMAX=           .38   INÍCIO=           .00   COMPR=          4.70
+
+VÃO= 3 /L=           715 /B=            30 /H=            50
+       3- PARC.DIST.PMAX=          2.92   INÍCIO=           .00   COMPR=          7.15
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1           .30           .00           .20           .00           .25           .15   2
+    2           .30           .00           .00           .00           .25           .15   1
+    3           .30           .00           .20           .00           .25           .15   2
+    4           .30           .00
+***006 AVISO: Carga não considerada viga    7 trecho  2 nó    6(      1530,       985) valor      0.00 tf/m                                      
+***007 AVISO: VERIFIQUE distribuição de cargas na viga
+***008 AVISO: Não há cargas de alvenaria na viga    7
+
+Cargas nos vãos da VIGA    7
+----------------------------
+
+VÃO= 1 /L=           950 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=          1.18   INÍCIO=           .00   COMPR=          7.15
+
+VÃO= 2 /L=           950 /B=            30 /H=            50
+       2- PARC.DIST.PMAX=          1.18   INÍCIO=          2.35   COMPR=          7.15
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1           .30           .00           .20           .00           .25           .15   5
+    2          5.00          2.35           .20           .00           .25           .15   5
+    3           .30           .00
+***009 AVISO: Não há cargas de alvenaria na viga    8
+
+Cargas nos vãos da VIGA    8
+----------------------------
+
+VÃO= 1 /L=           715 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=          2.89   INÍCIO=           .00   COMPR=          7.15
+
+VÃO= 2 /L=           470 /B=            30 /H=            50
+       2- PARC.DIST.PMAX=           .38   INÍCIO=           .00   COMPR=          4.70
+
+VÃO= 3 /L=           715 /B=            30 /H=            50
+       3- PARC.DIST.PMAX=          2.89   INÍCIO=           .00   COMPR=          7.15
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1           .30           .00           .20           .00           .25           .15   2
+    2           .30           .00           .00           .00           .25           .15   1
+    3           .30           .00           .20           .00           .25           .15   2
+    4           .30           .00
+***010 AVISO: Não há cargas de alvenaria na viga    9
+
+Cargas nos vãos da VIGA    9
+----------------------------
+
+VÃO= 1 /L=           650 /B=            30 /H=           150
+       1- PARC.DIST.PMAX=          1.53   INÍCIO=          1.30   COMPR=          3.90
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1          3.50          1.30           .20           .00           .75           .15   5
+    2          3.50          1.30
+***011 AVISO: Não há cargas de alvenaria na viga   10
+
+Cargas nos vãos da VIGA   10
+----------------------------
+
+VÃO= 1 /L=           970 /B=            30 /H=            50
+       1- PARC.DIST.PMAX=           .50   INÍCIO=           .00   COMPR=          3.20
+       1- PARC.DIST.PMAX=           .39   INÍCIO=          3.20   COMPR=          3.30
+       1- PARC.DIST.PMAX=           .49   INÍCIO=          6.50   COMPR=          3.20
+       1- PARC.DIST.PMAX=           .38   INÍCIO=           .00   COMPR=          9.70
+       1- REAC.IND. PMAX=           .00   APLIC.=          3.20
+                   BW AP=           .30   D.VER =           .50   VIGA=    6   APOIO=    2
+       1- REAC.IND. PMAX=           .00   APLIC.=          6.50
+                   BW AP=           .30   D.VER =           .50   VIGA=    8   APOIO=    2
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1           .30           .00           .20           .00           .25           .15   8
+    2           .30           .00
+***012 AVISO: Não há cargas de alvenaria na viga   11
+
+Cargas nos vãos da VIGA   11
+----------------------------
+
+VÃO= 1 /L=         287.6 /B=            30 /H=           150
+       1- PARC.DIST.PMAX=          1.53   INÍCIO=          1.30   COMPR=         1.576
+
+VÃO= 2 /L=         362.4 /B=            30 /H=           150
+       2- PARC.DIST.PMAX=          1.53   INÍCIO=           .00   COMPR=         2.324
+
+ Apoio      Largura         Excen           HCS           HCI          DFSE          DFLE  TPS
+    1          3.50          1.30           .20           .00           .75           .15   8
+    2          .875           .00           .20           .00           .75           .15   8
+    3          3.50          1.30
+
+
+Somatória de cargas ( 1 piso) 
+------------------------------
+
+Vigas            143.48 tf      
+Pilares           69.67 tf        (PP     57.54 tf           Outras     12.12 tf      )
+             ----------
+Total            213.15 tf      
+
+
+
+
+
+---------------------------------------------------------
+Cargas - Caso de carregamento    2
+---------------------------------------------------------
+***013 AVISO: DISEIX/DISCIN não possível p/Laje    3; adotado DISNOS
+***014 AVISO: DISEIX/DISCIN não possível p/Laje    6; adotado DISNOS
+
+
+Somatória de cargas ( 1 piso) 
+------------------------------
+
+Vigas             97.78 tf      
+Pilares           64.28 tf        (PP     57.54 tf           Outras      6.74 tf      )
+             ----------
+Total            162.06 tf      
+
+
+
+
+
+---------------------------------------------------------
+Cargas - Caso de carregamento    3
+---------------------------------------------------------
+***015 AVISO: DISEIX/DISCIN não possível p/Laje    3; adotado DISNOS
+***016 AVISO: DISEIX/DISCIN não possível p/Laje    6; adotado DISNOS
+
+
+Somatória de cargas ( 1 piso) 
+------------------------------
+
+Vigas             22.85 tf      
+Pilares            2.69 tf        (PP       .00 tf           Outras      2.69 tf      )
+             ----------
+Total             25.55 tf      
+
+
+***017 AVISO: Peso próprio de lajes e vigas desativado (caso  3)
+
+
+
+---------------------------------------------------------
+Cargas - Caso de carregamento    4
+---------------------------------------------------------
+***018 AVISO: DISEIX/DISCIN não possível p/Laje    3; adotado DISNOS
+***019 AVISO: DISEIX/DISCIN não possível p/Laje    6; adotado DISNOS
+
+
+Somatória de cargas ( 1 piso) 
+------------------------------
+
+Vigas             22.85 tf      
+Pilares            2.69 tf        (PP       .00 tf           Outras      2.69 tf      )
+             ----------
+Total             25.55 tf      
+
+
+***020 AVISO: Peso próprio de lajes e vigas desativado (caso  4)
+-------------------------------------------------------------------------------
+
+ATENÇÃO: O TQS Formas separou as cargas para cálculo de vigas
+         em mínimas e máximas, do seguinte modo:
+
+         Mínimas: Peso próprio e cargas permanentes, vindas dos
+                  casos 2 e 3
+         Máximas: As mínimas mais as cargas acidentais e outros casos
+                  de carregamento, de número maior ou igual a 4
+
+Em caso de redução das sobrecargas, com esforços verticais vindos do
+TQS Vigas, a diferença entre as reações mínimas e máximas será tomada
+como uma estimativa da sobrecarga para efeito de redução.
+
+          FIM
+            *
+***021 AVISO: Verifique os esforços transferidos para o TQS Pilar
+-------------------------------------------------------------------------------
+
+Arquivo de critérios: D:\Modelos TQS\PROJETOS EXTERNOS\MARQUISE\TESTE\PARFOR.DAT
+Critérios gerais
+=================
+
+Entrada gráfica:
+     Caso 1 na entrada gráfica agrupa outros casos ...              2-4     (       )
+Geometria:
+     Piso de processamento ...........................                0     ( PISO  )
+     Largura default de vigas (cm) ...................               20     ( DIMVIG)
+     Altura  default de vigas (cm) ...................               50     ( DIMVIG)
+     Largura default de pilares (cm) .................               40     ( DIMPIL)
+     Profundidade default de pilares (cm) ............               40     ( DIMPIL)
+     Altura default de lajes (cm) ....................               10     ( DIMLAJ)
+     Consideração da area do fundo das vigas..........              Sim     ( FFUNDV)
+Cargas:
+     Geometria do contorno das lajes .................            Faces     ( DISCIN)
+     Critério de distribuição de cargas concentradas..        Ponderado     ( DISCCP)
+     Fator de engastamento parcial....................            1.000     ( ENGPAR)
+     Módulo de discretização p/distrib cargas (cm) ...               10     ( DISCRE)
+     Número mínimo de pontos discretos por eixo.......               10     ( DISMIN)
+     Número máximo de pontos discretos por eixo.......              150     ( DISMAX)
+     Homogeneização das cargas por lado de laje.......              Sim     ( DISTCA)
+     Calculo automático do peso próprio das lajes ....              Sim     ( PPLAJ )
+     Calculo automático do peso próprio das vigas ....              Sim     ( PPVIG )
+     Espaçamento p/discret de cargas p/área de lajes..               50     ( DISARE)
+     Gera engastamentos auto. em lajes contíguas .....              Sim     ( ENGAUT)
+     Percent distrib cargas lados nao apoiados laje pr           12.500
+Desenho - Escala:
+     Escala geral de desenho .........................           50.000     ( ESCALA)
+TQS Vigas:
+     Vao p/cálculo de excentricidade de apoio ........           HViga      (       )
+     Altura da viga p/excentricidade de apoio.........            0.300
+     Fator de extensão do apoio dentro do pilar ......             .030     ( EXTAPO)
+     Extensão fixa da viga dentro do apoio (cm) ......             .000     ( EXTFIX)
+     Extensão mínima da viga dentro do apoio (cm) ....             .000     ( EXTMIN)
+     Código de redução de alívio de cortante .........                0     ( RALCOR)
+     Fator de alternância de cargas ............. ....             .850     ( ALTERN)
+     Grava .DAT de vigas mesmo que ja exista .........              Sim     ( GRVVIG)
+     Multiplica armadura de vigas pelo num de pisos ..              Sim     ( MULFER)
+     Colaboração das lajes na rigidez das vigas ......              Sim     ( BCOLAB)
+     Articula pilares intermediários .................              Não     (NARTPIN)
+     Le COMPII/COMPIS do edificio, se zerados ........              Não     (NCOMEDI)
+     Comprimento do pilar superior (m) ...............                0     ( COMPIS)
+     Comprimento do pilar inferior (m) ...............                0     ( COMPII)
+     Vinculação do pilar superior ....................         Articula     ( VINPIS)
+     Vinculação do pilar inferior ....................         Articula     ( VINPII)
+     Redutor de mola para vigas contínuas ............            1.000     ( REDMOV)
+     Multipl larg equiv de pilar/portic simplif de vig            1.000     ( LEPMOV)
+TQS Pilar:
+     Grava arquivo de dados p/o TQS Pilar ............              Sim     ( GRVPIL)
+     Transfere reações de vigas para pilares .........              Sim     ( REACOE)
+     Grava momento de excen de apoio da viga no pilar.              Sim     ( MOMVPL)
+     Pilar deslocável ................................              Não     (NPILDES)
+     Grava momentos de pórtico simpificado de vigas ..              Não     (NMOMEPL)
+     Desconta altura das vigas dos PD dos pilares ....              Não     (NPILHVG)
+     Grava altura da viga correspondente ao pilar ....              Sim     ( PILGRH)
+     Altura default da fundação (cm) .................              100     ( HFUN  )
+     Inibe relat portico simplif. no resumo de cargas.              Sim     ( RLPSIM)
+     % do vão de viga com laje para travar pilar .....          100.000
+TQS Lajes:
+     Vinculações de lajes ............................    da forma          ( LAJENF)
+     Gravação automática do arquivo .LAJ .............              Sim     ( GRVLAJ)
+

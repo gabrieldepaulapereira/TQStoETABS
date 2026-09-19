@@ -118,20 +118,8 @@ def normalize_coordinates(model: StructuralModel, config: Config) -> StepResult:
     for cid, col in model.columns.items():
         sec = col.section
         if isinstance(sec, RectSection):
-            corners = sec.polygon
-            p0, p1, p3 = mappt(corners[0]), mappt(corners[1]), mappt(corners[3])
-            new_len = p0.distance_to(p1)
-            new_wid = p0.distance_to(p3)
-            new_sec = RectSection(new_len, new_wid, sec.angle_deg, p0)
-            for attr, before, after in (("length", sec.length, new_len), ("width", sec.width, new_wid)):
-                if abs(before - after) > 1e-9:
-                    changes.append(ChangeRecord(cid, attr, round(before, 6), round(after, 6),
-                                                "Coordinate normalization (dimensao do pilar)", RULE,
-                                                "normalize_coordinates", tol))
-            if abs(new_len - sec.length) > tol or abs(new_wid - sec.width) > tol:
-                diag.warning("NORM-W-COLUMN-DIM", f"Pilar {cid}: dimensao alterada alem da tolerancia "
-                             f"({fmt(sec.length)}x{fmt(sec.width)} -> {fmt(new_len)}x{fmt(new_wid)})",
-                             Source.ENGINE, refs=(cid,))
+            # so a posicao (canto-origem) e normalizada; L e B do pilar ficam exatos
+            new_sec = RectSection(sec.length, sec.width, sec.angle_deg, mappt(sec.polygon[0]))
         else:
             new_sec = PolygonSection(mappoly(sec.outline))
         old_c = col.centroid

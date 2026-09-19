@@ -1,0 +1,70 @@
+
+Piso 7: Cobertura																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															23.02	164.25	50	
+Vigas															14.56	102.95	50	
+Lajes															24.11	120.56	50	
+Fundações																	50	
+Outros																		
+Totais															61.69	387.76		
+
+Piso 6: Tipo 2																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															50.65	373.56	50	
+Vigas															35.07	244.47	50	
+Lajes															107.09	535.45	50	
+Fundações																	50	
+Outros																		
+Totais															192.81	1153.48		
+
+Piso 5: Tipo 1																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															49.20	362.89	50	
+Vigas															39.17	270.01	50	
+Lajes															105.45	527.23	50	
+Fundações																	50	
+Outros																		
+Totais															193.82	1160.13		
+
+Piso 4: Tipo 1																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															49.20	362.89	50	
+Vigas															39.17	270.01	50	
+Lajes															105.45	527.23	50	
+Fundações																	50	
+Outros																		
+Totais															193.82	1160.13		
+
+Piso 3: Tipo 1																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															49.20	362.89	60	
+Vigas															39.17	270.01	50	
+Lajes															105.45	527.23	50	
+Fundações																	50	
+Outros																		
+Totais															193.82	1160.13		
+
+Piso 2: Tipo 1																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															49.20	362.89	60	
+Vigas															39.17	270.01	50	
+Lajes															105.45	527.23	50	
+Fundações																	50	
+Outros																		
+Totais															193.82	1160.13		
+
+Piso 1: Tipo 1																		
+Bitola	3.2	4.2	5	6.3	8	10	12.5	16	20	22	25	32	40	Aço	Concreto	Forma	fck	
+	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	kgf	m3	m2	MPa	
+Pilares															49.20	362.89	60	
+Vigas															39.17	270.01	50	
+Lajes															105.45	527.23	50	
+Fundações																	50	
+Outros																		
+Totais															193.82	1160.13		

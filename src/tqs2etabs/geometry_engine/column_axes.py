@@ -165,6 +165,67 @@ def _intersect_lines(p: Point, u: tuple[float, float], q: Point, v: tuple[float,
     return Point(p.x + u[0] * t, p.y + u[1] * t)
 
 
+def decompose_rectilinear(poly: Polygon, tol: float = 1e-6) -> list[Polygon]:
+    """Decompoe um poligono retilineo (lados paralelos aos eixos) em retangulos.
+
+    Faz a decomposicao por faixas verticais e por faixas horizontais (unindo faixas vizinhas
+    com o mesmo intervalo) e devolve a que tiver menos retangulos. Devolve [] se o poligono
+    nao for retilineo."""
+    pts = open_polygon(poly, tol=1e-9)
+    n = len(pts)
+    for i in range(n):
+        a, b = pts[i], pts[(i + 1) % n]
+        if abs(a.x - b.x) > tol and abs(a.y - b.y) > tol:
+            return []
+
+    def strips(vertical: bool) -> list[Polygon]:
+        coords = sorted({(p.x if vertical else p.y) for p in pts})
+        rects: list[tuple[float, float, float, float]] = []      # (c0, c1, lo, hi)
+        for c0, c1 in zip(coords, coords[1:]):
+            mid = (c0 + c1) / 2
+            crossings = []
+            for i in range(n):
+                a, b = pts[i], pts[(i + 1) % n]
+                if vertical:
+                    if abs(a.x - b.x) <= tol:
+                        continue
+                    if min(a.x, b.x) <= mid <= max(a.x, b.x):
+                        crossings.append(a.y)
+                else:
+                    if abs(a.y - b.y) <= tol:
+                        continue
+                    if min(a.y, b.y) <= mid <= max(a.y, b.y):
+                        crossings.append(a.x)
+            crossings.sort()
+            for lo, hi in zip(crossings[0::2], crossings[1::2]):
+                if hi - lo > tol:
+                    rects.append((c0, c1, lo, hi))
+        merged: list[list[float]] = []
+        for c0, c1, lo, hi in rects:          # unir faixas vizinhas com o mesmo intervalo
+            for m in merged:
+                if abs(m[1] - c0) <= tol and abs(m[2] - lo) <= tol and abs(m[3] - hi) <= tol:
+                    m[1] = c1
+                    break
+            else:
+                merged.append([c0, c1, lo, hi])
+        out = []
+        for c0, c1, lo, hi in merged:
+            if vertical:
+                out.append((Point(c0, lo), Point(c1, lo), Point(c1, hi), Point(c0, hi)))
+            else:
+                out.append((Point(lo, c0), Point(hi, c0), Point(hi, c1), Point(lo, c1)))
+        return out
+
+    v, h = strips(True), strips(False)
+    if not v and not h:
+        return []
+    if not v:
+        return h
+    if not h:
+        return v
+    return v if len(v) <= len(h) else h
+
+
 def derive_column_axes(model: StructuralModel, config: Config) -> StepResult:
     diag = DiagnosticCollector()
     tol = config.tolerances.coordinate_cluster
@@ -174,10 +235,16 @@ def derive_column_axes(model: StructuralModel, config: Config) -> StepResult:
         if col.kind_hint == ColumnKind.COLUMN:
             columns[cid] = replace(col, axes=())
             continue
-        if col.laminas:
-            segs = [s for s in (lamina_axis(l) for l in col.laminas) if s is not None]
-            if len(segs) != len(col.laminas):
-                diag.warning("AXES-W-LAMINA", f"Pilar {cid}: {len(col.laminas) - len(segs)} laminas nao retangulares ignoradas",
+        laminas = col.laminas
+        if not laminas and not isinstance(col.section, RectSection):
+            laminas = tuple(decompose_rectilinear(col.section.outline))
+            if laminas:
+                diag.info("AXES-I-DECOMPOSED", f"Pilar {cid}: poligono sem LAMINAS decomposto em {len(laminas)} retangulo(s)",
+                          Source.ENGINE, refs=(cid,))
+        if laminas:
+            segs = [s for s in (lamina_axis(l) for l in laminas) if s is not None]
+            if len(segs) != len(laminas):
+                diag.warning("AXES-W-LAMINA", f"Pilar {cid}: {len(laminas) - len(segs)} laminas nao retangulares ignoradas",
                              Source.ENGINE, refs=(cid,))
             segs, gaps = merge_collinear(segs, config.policy.wall_opening_merge_max, tol)
             for g in gaps:
@@ -189,7 +256,7 @@ def derive_column_axes(model: StructuralModel, config: Config) -> StepResult:
             seg = lamina_axis(sec.polygon)
             segs = [seg] if seg else []
         else:
-            diag.error("AXES-E-NO-LAMINAS", f"Pilar {cid} poligonal sem LAMINAS: eixo indeterminado",
+            diag.error("AXES-E-NO-LAMINAS", f"Pilar {cid} poligonal nao retilineo e sem LAMINAS: eixo indeterminado",
                        Source.ENGINE, refs=(cid,))
             columns[cid] = col
             continue

@@ -184,7 +184,7 @@ def validate_model(model: StructuralModel, original: StructuralModel, config: Co
             elif e.support == EdgeSupport.UNKNOWN:
                 diag.warning("CON-W-SLAB-EDGE-UNKNOWN", f"{s.id}: bordo {e.start_node_id}-{e.end_node_id} sem apoio identificado",
                              V, refs=(s.id,))
-    for col in model.columns.values():
+    for col in (model.columns.values() if (model.beams or model.slabs) else ()):
         touching = [b.id for b in model.beams.values() if any(s.kind == SupportKind.COLUMN and s.ref_id == col.id for s in b.supports)]
         slabs_on = [s.id for s in model.slabs.values() if any(e.support == EdgeSupport.COLUMN and e.ref_id == col.id for e in s.edges)]
         if not touching and not slabs_on:
