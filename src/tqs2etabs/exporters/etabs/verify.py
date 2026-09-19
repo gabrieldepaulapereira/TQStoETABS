@@ -27,7 +27,8 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
     # contagens
     exp = desc.counts()
     got = {"points": len(e2k.points), "frames": len(e2k.lines), "walls": sum(1 for a in e2k.areas.values() if a[0] == "PANEL"),
-           "slabs": sum(1 for a in e2k.areas.values() if a[0] == "FLOOR"), "grids": len(e2k.grids),
+           "slabs": sum(1 for n, a in e2k.areas.items() if a[0] == "FLOOR" and n not in e2k.openings),
+           "openings": len(e2k.openings), "grids": len(e2k.grids),
            "restraints": len(e2k.restraints)}
     for k, v in got.items():
         if exp[k] != v:

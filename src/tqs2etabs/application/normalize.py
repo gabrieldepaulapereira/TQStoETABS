@@ -86,6 +86,29 @@ def format_audit_report(result: NormalizationResult, verbose: bool = False) -> s
             add("  " + d.format())
     add("")
 
+    we = eng.step("snap_beams_to_wall_ends")
+    out.extend(_h("Wall-end alignment"))
+    add(f"Beams moved to wall end node: {we.stats['beams_moved']}   Nodes moved: {we.stats['nodes_moved']}")
+    for d in we.diagnostics:
+        if d.level != Level.INFO or d.code == "ALIGN-I-WALL-END":
+            add("  " + d.format())
+    add("")
+
+    out.extend(_h("Slab outlines"))
+    sv = eng.step("snap_slab_vertices_to_column_axes")
+    ab = eng.step("absorb_offset_slabs")
+    si = eng.step("simplify_slab_outlines")
+    add(f"Vertices moved to wall axes: {sv.stats['nodes_moved']}   Offset slabs absorbed: {ab.stats['absorbed']}   "
+        f"Openings created: {si.stats['openings']}   Slabs: {si.stats['slabs']}")
+    for d in sv.diagnostics + ab.diagnostics + si.diagnostics:
+        if d.level != Level.INFO or d.code in ("SLAB-I-THICKNESS", "SLAB-I-ABSORBED"):
+            add("  " + d.format())
+    for sl in m.slabs.values():
+        pts = [m.node(e.start_node_id).point for e in sl.edges]
+        add(f"  {sl.id:4} {len(pts):2} vertices, {len(sl.holes)} opening(s): " +
+            " ".join(f"({fmt(p.x)},{fmt(p.y)})" for p in pts))
+    add("")
+
     st = eng.step("merge_nodes").stats
     out.extend(_h("Node merge"))
     add(f"Nodes merged: {st['merged']}")

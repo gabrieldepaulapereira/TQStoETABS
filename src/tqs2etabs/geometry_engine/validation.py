@@ -171,10 +171,15 @@ def validate_model(model: StructuralModel, original: StructuralModel, config: Co
         for e in s.edges:
             if e.support == EdgeSupport.BEAM:
                 ob = model.beams.get(e.ref_id or "")
-                ok = ob is not None and any({ob.axis[i], ob.axis[i + 1]} == {e.start_node_id, e.end_node_id}
-                                            for i in range(len(ob.axis) - 1))
+                ok = False
+                if ob is not None:
+                    pts = [model.node(n).point for n in ob.axis]
+                    def on_beam(p: Point) -> bool:
+                        return any(distance_point_to_segment(p, pts[i], pts[i + 1]) <= tol.node_merge
+                                   for i in range(len(pts) - 1))
+                    ok = on_beam(model.node(e.start_node_id).point) and on_beam(model.node(e.end_node_id).point)
                 if not ok:
-                    diag.error("CON-E-SLAB-EDGE-BEAM", f"{s.id}: bordo {e.start_node_id}-{e.end_node_id} nao e trecho de {e.ref_id}",
+                    diag.error("CON-E-SLAB-EDGE-BEAM", f"{s.id}: bordo {e.start_node_id}-{e.end_node_id} nao esta sobre {e.ref_id}",
                                V, refs=(s.id, e.ref_id or "?"))
             elif e.support == EdgeSupport.UNKNOWN:
                 diag.warning("CON-W-SLAB-EDGE-UNKNOWN", f"{s.id}: bordo {e.start_node_id}-{e.end_node_id} sem apoio identificado",

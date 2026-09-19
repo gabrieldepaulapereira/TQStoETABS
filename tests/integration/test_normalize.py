@@ -20,7 +20,8 @@ def test_no_errors_no_validation_warnings(result):
     assert not result.engine.has_errors
     val = result.engine.step("validate_model")
     assert val.stats["ERROR"] == 0 and val.stats["WARNING"] == 0
-    assert (len(m.nodes), len(m.columns), len(m.beams), len(m.slabs)) == (121, 8, 22, 14)
+    # 5 nos fundidos (vigas levadas as pontas das paredes); 6 lajes rebaixadas absorvidas
+    assert (len(m.nodes), len(m.columns), len(m.beams), len(m.slabs)) == (116, 8, 22, 8)
 
 
 def test_all_coordinates_have_two_decimals(result):
@@ -50,33 +51,61 @@ def test_beam_end_extensions_match_expected_table(result):
                 "N22": 0.30, "N24": 0.30, "N11": 0.30, "N39": 0.30, "N21": 0.25, "N5": 0.25,
                 "N19": 0.25, "N14": 0.25, "N38": 0.10, "N25": 0.10, "N33": 0.10, "N31": 0.10}
     assert {k: round(v, 2) for k, v in ext.items()} == expected
-    m = result.model
+    m = result.engine.snapshots["snap_beams_to_wall_ends"]      # antes da regra da ponta
     assert (m.node("N15").x, m.node("N15").y) == (-11.76, 22.21)
     assert (m.node("N38").x, m.node("N38").y) == (-11.76, 24.74)
     assert (m.node("N28").x, m.node("N28").y) == (11.55, 24.21)
     # V16/V22 ja estavam nas linhas medias dos bracos: nao movidas
     assert "N3" not in ext and "N4" not in ext and "N1" not in ext and "N2" not in ext
     assert result.engine.step("snap_beams_transverse").stats["nodes_moved"] == 0
-    assert result.engine.step("merge_nodes").stats["merged"] == 0
+    assert result.engine.step("merge_nodes").stats["merged"] == 5      # extremidades que coincidiram nas pontas
 
 
 def test_grids(result):
     grids = [(g.label, g.coordinate) for g in result.model.grids]
-    assert grids == [("X1", -27.95), ("X2", -19.56), ("X3", -11.76), ("X4", -4.65), ("X5", 3.15), ("X6", 11.55),
-                     ("Y1", 15.24), ("Y2", 24.68)]
+    assert grids == [("A", -27.95), ("B", -19.56), ("C", -11.76), ("D", -4.65), ("E", 3.15), ("F", 11.55),
+                     ("1", 15.24), ("2", 24.68)]
     by_label = {g.label: g for g in result.model.grids}
-    assert by_label["X2"].origin_column_ids == ("P1", "P5")
-    assert by_label["X3"].origin_column_ids == ("P3", "P6")
+    assert by_label["B"].origin_column_ids == ("P1", "P5")
+    assert by_label["C"].origin_column_ids == ("P3", "P6")
+
+
+def test_wall_end_snap_and_slab_rules(result):
+    m = result.model
+    wall = result.engine.step("snap_beams_to_wall_ends")
+    assert wall.stats["beams_moved"] == 10
+    # V1 passa pela ponta de P1 (y = 24,83) e V7 pelas pontas dos bracos do P3 (y = 22,14)
+    assert m.node("N37").y == 24.83 and m.node("N42").y == 24.83
+    assert all(m.node(n).y == 22.14 for n in m.beams["V7"].axis)
+    # V13 vai para a ponta de P5 (15,09); a juncao braco/alma do P6 nao conta como ponta
+    assert m.node("N32").y == 15.09
+    # lajes: rebaixos absorvidos, vertices nas linhas medias, aberturas nos vazios
+    assert result.engine.step("absorb_offset_slabs").stats["absorbed"] == 6
+    assert set(m.slabs) == {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"}
+    assert len(m.slabs["L4"].holes) == 1 and len(m.slabs["L5"].holes) == 1
+    xs = {round(m.node(e.start_node_id).x, 2) for e in m.slabs["L4"].edges}
+    assert -27.95 in xs and -27.7 not in xs             # bordo da L4 na linha media do P4, nao na face
+    l3 = [(m.node(e.start_node_id).x, m.node(e.start_node_id).y) for e in m.slabs["L3"].edges]
+    assert {round(y, 2) for _, y in l3} == {20.64, 22.14}   # L3 virou retangulo
+    assert all(len(s.edges) <= 13 for s in m.slabs.values())
 
 
 def test_lengths_and_areas_preserved_except_recorded_extensions(result):
     orig, final = result.engine.original, result.model
-    ext = result.engine.step("extend_beam_ends").stats["extended"]
+    moved: dict[str, float] = {}
+    for step in ("extend_beam_ends", "snap_beams_to_wall_ends", "snap_slab_vertices_to_column_axes"):
+        stats = result.engine.step(step).stats
+        for k, v in stats.get("extended", stats.get("moved", {})).items():
+            moved[k] = moved.get(k, 0.0) + v
+    for c in result.model.changes:
+        if c.rule == "node-merge":
+            moved[c.after] = max(moved.get(c.after, 0.0), moved.get(c.element_id, 0.0))
     for bid, b0 in orig.beams.items():
         b1 = final.beams[bid]
         l0 = polyline_length([orig.node(n).point for n in b0.axis])
         l1 = polyline_length([final.node(n).point for n in b1.axis])
-        allowed = 0.01 + ext.get(b0.axis[0], 0) + ext.get(b0.axis[-1], 0)
+        ends = {b0.axis[0], b0.axis[-1], b1.axis[0], b1.axis[-1]}
+        allowed = 0.01 + sum(moved.get(n, 0.0) for n in ends)
         assert abs(l1 - l0) <= allowed + 1e-9, bid
     assert polyline_length([final.node(n).point for n in final.beams["V22"].axis]) == pytest.approx(1.50)
     for sid, s1 in final.slabs.items():
@@ -96,8 +125,9 @@ def test_lst_warnings_mapped_to_actions(result):
 
 def test_comparison_counts(result):
     c = result.comparison.counts
-    assert c["node"] == {"tqs": 121, "kept": 121, "modified": 121, "removed": 0}
+    assert c["node"] == {"tqs": 121, "kept": 116, "modified": 116, "removed": 5}
     assert c["beam"]["modified"] == 22 and c["column"]["modified"] == 8
+    assert c["slab"] == {"tqs": 14, "kept": 8, "modified": 8, "removed": 6}
     v16 = next(i for i in result.comparison.items if i.element_id == "V16")
     assert v16.reasons == ("Coordinate normalization",)
 

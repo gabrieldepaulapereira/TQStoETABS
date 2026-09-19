@@ -58,15 +58,33 @@ def _dedupe(values: dict[float, set[str]], tol: float) -> list[tuple[float, set[
     return out
 
 
+def _letters(i: int) -> str:
+    """0 -> A, 25 -> Z, 26 -> AA ..."""
+    s = ""
+    i += 1
+    while i > 0:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def grid_label(style: str, prefix: str, index: int, start: int) -> str:
+    if style == "letters":
+        return _letters(index)
+    if style == "numbers":
+        return str(start + index)
+    return f"{prefix}{start + index}"
+
+
 def name_grids(lines: list[tuple[str, float, tuple[str, ...]]], naming: GridNaming) -> tuple[GridLine, ...]:
-    """lines: (direcao, coordenada, origens) -> GridLine nomeados por direcao, em ordem crescente."""
+    """lines: (direcao, coordenada, origens) -> GridLine nomeados por direcao, em ordem crescente.
+    Estilos: letters (A, B, ...), numbers (1, 2, ...), prefix (X1, X2, ...)."""
     out = []
-    counters = {"X": naming.start_index, "Y": naming.start_index}
+    styles = {"X": naming.x_style, "Y": naming.y_style}
     prefixes = {"X": naming.x_prefix, "Y": naming.y_prefix}
     for direction in ("X", "Y"):
-        for d, coord, origins in sorted((l for l in lines if l[0] == direction), key=lambda l: l[1]):
-            label = f"{prefixes[d]}{counters[d]}"
-            counters[d] += 1
+        for i, (d, coord, origins) in enumerate(sorted((l for l in lines if l[0] == direction), key=lambda l: l[1])):
+            label = grid_label(styles[d], prefixes[d], i, naming.start_index)
             out.append(GridLine(f"G-{label}", label, d, coord, origins))
     return tuple(out)
 

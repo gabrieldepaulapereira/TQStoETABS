@@ -28,6 +28,7 @@ class E2kModel:
     area_sections: dict[str, str] = field(default_factory=dict)
     area_piers: dict[str, str] = field(default_factory=dict)
     restraints: dict[str, str] = field(default_factory=dict)
+    openings: set[str] = field(default_factory=set)
     sections_seen: list[str] = field(default_factory=list)
 
 
@@ -60,7 +61,10 @@ def read_e2k_text(text: str, decimal_separator: str = ",") -> E2kModel:
         elif key == "LINEASSIGN":
             m.line_sections[t[1]] = t[t.index("SECTION") + 1]
         elif key == "AREAASSIGN":
-            m.area_sections[t[1]] = t[t.index("SECTION") + 1]
+            if "OPENING" in t:
+                m.openings.add(t[1])
+            if "SECTION" in t:
+                m.area_sections[t[1]] = t[t.index("SECTION") + 1]
             if "PIER" in t:
                 m.area_piers[t[1]] = t[t.index("PIER") + 1]
         elif key == "POINTASSIGN" and "RESTRAINT" in t:

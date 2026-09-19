@@ -73,6 +73,31 @@ def _split_at_nodes(seg, model: StructuralModel, tol: float) -> list[tuple[Point
     return out
 
 
+def _trim_stubs(pieces: list[tuple[Point, Point, float]], model: StructuralModel, tol: float,
+                stub_max: float) -> tuple[list[tuple[Point, Point, float]], list[float]]:
+    """Remove pedacos terminais curtos cuja extremidade livre nao tem no nem outra lamina (toco de canto)."""
+    anchors = [n.point for n in model.structural_nodes()]
+
+    def anchored(p: Point, ends: list[Point]) -> bool:
+        if any(p.distance_to(q) <= tol for q in anchors):
+            return True
+        return sum(1 for q in ends if q.distance_to(p) <= tol) > 1
+
+    trimmed: list[float] = []
+    changed = True
+    while changed and len(pieces) > 1:
+        changed = False
+        ends = [p for piece in pieces for p in piece[:2]]
+        for i, (a, b, t) in enumerate(pieces):
+            length = a.distance_to(b)
+            if length <= stub_max and (not anchored(a, ends) or not anchored(b, ends)):
+                del pieces[i]
+                trimmed.append(length)
+                changed = True
+                break
+    return pieces, trimmed
+
+
 def build_description(model: StructuralModel, config: Config) -> tuple[EtabsDescription, tuple]:
     opt = config.etabs
     diag = DiagnosticCollector()
@@ -171,6 +196,9 @@ def build_description(model: StructuralModel, config: Config) -> tuple[EtabsDesc
             pieces = []
             for seg in col.axes:
                 pieces.extend(_split_at_nodes(seg, model, tol) if opt.split_walls_at_nodes else [(seg.start, seg.end, seg.thickness)])
+            pieces, trimmed = _trim_stubs(pieces, model, tol, config.tolerances.trim_wall_stub_max)
+            for t in trimmed:
+                notes.append(f"Toco de parede {col.id} de {t:.2f} m sem no eliminado")
             for k, (pa, pb, thick) in enumerate(pieces, start=1):
                 a = point_for_coord(pa, f"parede {col.id}")
                 b = point_for_coord(pb, f"parede {col.id}")
@@ -229,6 +257,10 @@ def build_description(model: StructuralModel, config: Config) -> tuple[EtabsDesc
             diag.error("EXP-E-SLAB", f"{slab.id} com menos de 3 vertices; nao exportada", Source.EXPORTER, refs=(slab.id,))
             continue
         areas.append(EArea(ascii_name(slab.name), "FLOOR", pts, story_name, sec, None, slab.id))
+        for k, hole in enumerate(slab.holes, start=1):
+            hpts = tuple(point_for_coord(p, f"abertura {slab.id}") for p in hole)
+            if len(set(hpts)) >= 3:
+                areas.append(EArea(f"{ascii_name(slab.name)}-O{k}", "OPENING", hpts, story_name, "", None, slab.id))
     if config.policy.ignore_vertical_offsets:
         notes.append("DFS de vigas e lajes ignorado: tudo no nivel do pavimento (decisao 18.5).")
 

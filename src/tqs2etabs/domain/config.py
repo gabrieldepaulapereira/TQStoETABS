@@ -19,6 +19,10 @@ class Tolerances:
     max_end_extension: float = 0.35
     length_change_warning: float = 0.010
     area_check_relative: float = 0.02
+    wall_end_snap: float = 0.15           # viga a menos disto da ponta da parede vai para a ponta (regra C)
+    min_opening_area: float = 0.05        # reentrancia menor que isto e simplesmente preenchida
+    trim_wall_stub_max: float = 0.15      # toco terminal de parede sem no, menor que isto, e eliminado
+    slab_dent_flatten_max: float = 0.20   # degrau de bordo livre menor que isto e achatado (laje cresce)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,10 +36,15 @@ class ModelingPolicy:
     units: str = "kN_m"
     keep_tqs_origin: bool = True
     wall_opening_merge_max: float = 1.0    # laminas colineares separadas por vao <= isto sao unidas (furo)
+    absorb_offset_slabs: bool = True       # lajes rebaixadas/balanco que compartilham bordo livre entram na laje-mae
+    simplify_slab_outlines: bool = True    # reentrancias de bordo livre -> contorno reto + abertura
+    openings: str = "opening"              # "opening" = area OPENING no ETABS; "fill" = preenche sem abertura
 
 
 @dataclass(frozen=True, slots=True)
 class GridNaming:
+    x_style: str = "letters"                # letters (A, B, ...) | numbers | prefix
+    y_style: str = "numbers"                # numbers (1, 2, ...) | letters | prefix
     x_prefix: str = "X"
     y_prefix: str = "Y"
     start_index: int = 1

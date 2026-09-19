@@ -99,7 +99,8 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
     for a in desc.areas:
         pts = "  ".join(f'"{p}"' for p in a.points)
         flags = "1  1  0  0" if a.kind == "PANEL" else "  ".join("0" for _ in a.points)
-        put("AREA CONNECTIVITIES", f'  AREA "{a.name}"  {a.kind}  {len(a.points)}  {pts}  {flags}  ')
+        kind = "FLOOR" if a.kind == "OPENING" else a.kind
+        put("AREA CONNECTIVITIES", f'  AREA "{a.name}"  {kind}  {len(a.points)}  {pts}  {flags}  ')
 
     for p in desc.points:
         put("POINT ASSIGNS", f'  POINTASSIGN  "{p.name}"  "{story}"  USERJOINT  "Yes"  ')
@@ -119,6 +120,8 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
             pier = f'PIER  "{a.pier}"  ' if a.pier else ""
             put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  {pier}OBJMESHTYPE "DEFAULT"  '
                                 f'ADDRESTRAINT "Yes"  CARDINALPOINT "MIDDLE"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
+        elif a.kind == "OPENING":
+            put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  OPENING "Yes"  ')
         else:
             put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{a.story}"  SECTION "{a.section}"  OBJMESHTYPE "DEFAULT"  '
                                 f'ADDRESTRAINT "No"  CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')

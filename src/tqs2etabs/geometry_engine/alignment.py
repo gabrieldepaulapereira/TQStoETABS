@@ -222,3 +222,104 @@ def extend_beam_ends(model: StructuralModel, config: Config) -> StepResult:
     return StepResult("extend_beam_ends", new_model, tuple(changes), diag.as_tuple(),
                       {"nodes_moved": len(changes), "extended": extended,
                        "errors": sum(1 for d in diag.items if d.level == Level.ERROR)})
+
+
+# ------------------------------------------------------ (c) ponta da parede
+
+RULE_WALL_END = "column-axis-priority/wall-end-snap"
+
+
+def _wall_true_ends(col: Column, tol: float) -> list[Point]:
+    """Extremidades reais das linhas de eixo (pontos que pertencem a um unico segmento)."""
+    pts: list[Point] = []
+    for s in col.axes:
+        pts.extend((s.start, s.end))
+    ends = []
+    for p in pts:
+        if sum(1 for q in pts if q.distance_to(p) <= tol) == 1:
+            ends.append(p)
+    return ends
+
+
+def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResult:
+    """Viga que encontra o eixo de uma parede a menos de wall_end_snap da ponta dessa parede
+    e deslocada transversalmente (toda a linha do eixo) ate passar pela ponta ("no do pilar"),
+    evitando o dente entre o fim da parede e a viga. Candidatos de varias paredes na mesma
+    viga: escolhe-se o deslocamento que minimiza o maior residuo; pontas de junção (canto de
+    nucleo) nao contam como ponta."""
+    tolc = config.tolerances
+    dec = tolc.rounding_decimals
+    diag = DiagnosticCollector()
+    ends_cache = {cid: _wall_true_ends(c, tolc.node_merge)
+                  for cid, c in model.columns.items() if c.kind_hint == ColumnKind.WALL and c.axes}
+
+    node_targets: dict[str, list[tuple[Point, str, str]]] = {}
+    beam_shift: dict[str, tuple[float, str]] = {}
+    for beam in model.beams.values():
+        if len(beam.axis) < 2:
+            continue
+        a, b = model.node(beam.axis[0]).point, model.node(beam.axis[-1]).point
+        u = _dir(a, b)
+        if u is None:
+            continue
+        nrm = (-u[1], u[0])
+        # candidatos: (deslocamento perpendicular, pilar, no)
+        cands: list[tuple[float, str, str]] = []
+        for sup in beam.supports:
+            if sup.kind != SupportKind.COLUMN or sup.ref_id not in ends_cache:
+                continue
+            p = model.node(sup.node_id).point
+            for e in ends_cache[sup.ref_id]:
+                d = p.distance_to(e)
+                if d > tolc.wall_end_snap:
+                    continue
+                along = abs((e.x - p.x) * u[0] + (e.y - p.y) * u[1])
+                if along > tolc.node_merge:      # ponta na direcao da viga: nao e caso de dente
+                    continue
+                s = (e.x - p.x) * nrm[0] + (e.y - p.y) * nrm[1]
+                cands.append((s, sup.ref_id, sup.node_id))
+        if not cands:
+            continue
+        options = sorted({round(s, 6) for s, _, _ in cands}, key=abs)
+        def worst(s: float) -> float:
+            return max(abs(s - c[0]) for c in cands)
+        best = min(options, key=lambda s: (round(worst(s), 6), abs(s)))
+        if abs(best) < 1e-9:
+            continue
+        ref = next(c[1] for c in cands if abs(c[0] - best) < 1e-9)
+        beam_shift[beam.id] = (best, ref)
+        for nid in beam.axis:
+            p = model.node(nid).point
+            t = Point(round_to(p.x + best * nrm[0], dec), round_to(p.y + best * nrm[1], dec))
+            node_targets.setdefault(nid, []).append((t, ref, beam.id))
+        if worst(best) > tolc.node_merge:
+            diag.warning("ALIGN-W-WALL-END-RESIDUAL", f"{beam.id}: deslocada {fmt(best)} m para a ponta de {ref}; "
+                         f"residuo de {fmt(worst(best))} m em outro apoio", Source.ENGINE, refs=(beam.id, ref))
+
+    nodes = dict(model.nodes)
+    changes: list[ChangeRecord] = []
+    moved: dict[str, float] = {}
+    for nid, props in node_targets.items():
+        targets = {(t.x, t.y) for t, _, _ in props}
+        if len(targets) > 1:
+            diag.warning("ALIGN-W-CONFLICT", f"No {nid}: deslocamentos para ponta de parede conflitantes "
+                         f"{[fmt_pt(t) for t, _, _ in props]}; nao movido", Source.ENGINE,
+                         refs=(nid,) + tuple({b for _, _, b in props}))
+            continue
+        target, ref, beam_id = props[0]
+        n = nodes[nid]
+        if n.point.distance_to(target) < 1e-9:
+            continue
+        beams = sorted({b for _, _, b in props})
+        changes.append(ChangeRecord(nid, "xy", fmt_pt(n.point), fmt_pt(target),
+                                    f"Viga {'/'.join(beams)} deslocada ate a ponta da parede {ref}", RULE_WALL_END,
+                                    "snap_beams_to_wall_ends", tolc.wall_end_snap, ref))
+        moved[nid] = n.point.distance_to(target)
+        nodes[nid] = replace(n, x=target.x, y=target.y)
+    for beam_id, (s, ref) in beam_shift.items():
+        diag.info("ALIGN-I-WALL-END", f"{beam_id} -> linha do eixo deslocada {fmt(abs(s))} m ate a ponta de {ref}",
+                  Source.ENGINE, refs=(beam_id, ref), action="beam moved to wall end node", distance=abs(s))
+    new_model = replace(model, nodes=nodes, diagnostics=model.diagnostics + diag.as_tuple(),
+                        changes=model.changes + tuple(changes))
+    return StepResult("snap_beams_to_wall_ends", new_model, tuple(changes), diag.as_tuple(),
+                      {"nodes_moved": len(changes), "beams_moved": len(beam_shift), "moved": moved})

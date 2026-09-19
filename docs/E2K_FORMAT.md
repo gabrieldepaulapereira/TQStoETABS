@@ -55,6 +55,12 @@ Não escreve: cargas (fora do escopo v1), rebaixos/offsets (decisão 18.5), rele
 Verificação automática usada: "esqueleto" de cada linha (palavras-chave com valores substituídos) — toda linha gerada
 tem esqueleto presente no MARAMBAIA.
 
+## Aberturas
+
+Nem o MARAMBAIA nem o VITREO contêm aberturas; a sintaxe usada é a documentada do ETABS:
+`AREA "L4-O1" FLOOR 4 p1 p2 p3 p4 0 0 0 0` + `AREAASSIGN "L4-O1" "story" OPENING "Yes"`. **NEEDS_REVIEW** na
+primeira importação com aberturas; alternativa `openings = "fill"` (só preenche a reentrância).
+
 ## Ainda a conferir na importação (NEEDS_REVIEW)
 
 1. Orientação de pilar-frame: `ANG = TQS − 90 (mod 180)` — ver `mapping.etabs_column_angle` (não há pilar-frame no 25 - Tipo).

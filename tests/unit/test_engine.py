@@ -8,7 +8,7 @@ import pytest
 
 from tqs2etabs.domain.config import Config, GridNaming, ModelingPolicy, Tolerances
 from tqs2etabs.domain.diagnostics import Level
-from tqs2etabs.domain.elements import AxisSegment
+from tqs2etabs.domain.elements import AxisSegment, EdgeSupport
 from tqs2etabs.domain.geometry import Point
 from tqs2etabs.geometry_engine import run_engine
 from tqs2etabs.geometry_engine.column_axes import join_corners, lamina_axis, merge_collinear
@@ -130,7 +130,7 @@ def test_column_priority_transverse_snap():
     assert snap.stats["nodes_moved"] == 2
     assert all(c.rule.endswith("transverse-snap") and c.reference == "P1" for c in snap.changes)
     # fora da tolerancia: nada se move e a validacao avisa
-    cfg = Config(tolerances=Tolerances(beam_column_snap=0.005))
+    cfg = Config(tolerances=Tolerances(beam_column_snap=0.005, wall_end_snap=0.0))
     res2 = run_engine(_model(LDF_SNAP, cfg), cfg)
     assert res2.step("snap_beams_transverse").stats["nodes_moved"] == 0
     assert res2.model.node("N1").x == pytest.approx(10.01)
@@ -262,8 +262,125 @@ def test_beam_crossing_wall_without_node_warns():
 
 
 def test_grid_naming_and_frame_columns():
-    cfg = Config(grids=GridNaming(x_prefix="A", y_prefix="B", start_index=1))
+    cfg = Config(grids=GridNaming(x_style="prefix", y_style="prefix", x_prefix="A", y_prefix="B", start_index=1))
     res = run_engine(_model(LDF_CLUSTER, cfg), cfg)
     labels = [(g.label, g.direction, g.coordinate) for g in res.model.grids]
     assert labels == [("A1", "X", 21.24), ("B1", "Y", 5.0), ("B2", "Y", 10.0)]
     assert res.model.grids[0].origin_column_ids == ("P1", "P2")
+    res = run_engine(_model(LDF_CLUSTER), Config())      # padrao: letras em X, numeros em Y
+    assert [g.label for g in res.model.grids] == ["A", "1", "2"]
+    from tqs2etabs.geometry_engine.grids import _letters
+    assert [_letters(i) for i in (0, 25, 26, 27)] == ["A", "Z", "AA", "AB"]
+
+
+LDF_SLAB_NOTCH = """\
+GEOMETRIA
+ 1 15,0
+ 2 600,300
+ 3 600,0
+ 4 15,300
+ 6 300,300
+ 7 300,200
+ 8 100,200
+ 9 100,300
+ V1 EIXO 4P1 9N 6N 2P2
+ V2 EIXO 1P1 3P3
+ V3 EIXO 3P3 2P2
+ P1 1 CON
+ P2 2 CON
+ P3 3 CON
+ L1 GRE AREA 160000 1 3 2 6 LIV 7 LIV 8 LIV 9 4 P1 ANG 0.000
+FIM
+DIMENSOES
+ V1 S1 20/50 S2 20/50 S3 20/50 VOL 1 1
+ V2 S1 20/50 VOL 1 1
+ V3 S1 20/50 VOL 1 1
+ P1 R 300/30 ANG 90 BASE 0,0 FCK 'C30'
+ P2 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ P3 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ L1 12.000 LARM 2 1
+FIM
+"""
+
+
+def test_slab_notch_becomes_straight_outline_with_opening():
+    res = run_engine(_model(LDF_SLAB_NOTCH), Config())
+    m = res.model
+    assert not res.has_errors
+    l1 = m.slabs["L1"]
+    ring = [(round(m.node(e.start_node_id).x, 2), round(m.node(e.start_node_id).y, 2)) for e in l1.edges]
+    assert (3.0, 2.0) not in ring and (1.0, 2.0) not in ring          # reentrancia removida
+    assert {p for p in ring} == {(0.0, 0.0), (6.0, 0.0), (6.0, 3.0), (3.0, 3.0), (1.0, 3.0), (0.0, 3.0)}
+    assert len(l1.holes) == 1
+    hole = {(round(p.x, 2), round(p.y, 2)) for p in l1.holes[0]}
+    assert hole == {(3.0, 3.0), (3.0, 2.0), (1.0, 2.0), (1.0, 3.0)}
+    assert all(e.support != EdgeSupport.FREE for e in l1.edges)
+    from tqs2etabs.domain.elements import NodeRole
+    assert m.node("N7").roles == {NodeRole.ORPHAN} and m.node("N8").roles == {NodeRole.ORPHAN}
+    # com aberturas desligadas a reentrancia e apenas preenchida
+    cfg = Config(policy=ModelingPolicy(openings="fill"))
+    res2 = run_engine(_model(LDF_SLAB_NOTCH, cfg), cfg)
+    assert res2.model.slabs["L1"].holes == ()
+
+
+LDF_SLAB_ABSORB = """\
+GEOMETRIA
+ 1 0,0
+ 2 600,0
+ 3 600,300
+ 4 0,300
+ 5 200,0
+ 6 400,0
+ 7 200,100
+ 8 400,100
+ V1 EIXO 1P1 5N 6N 2P2
+ V2 EIXO 2P2 3P3
+ V3 EIXO 3P3 4P4
+ V4 EIXO 4P4 1P1
+ P1 1 CON
+ P2 2 CON
+ P3 3 CON
+ P4 4 CON
+ L1 GRE AREA 160000 1 5 7 LIV 8 LIV 6 2 3 4 ANG 0.000
+ L100 'REBAIXO1' GRE AREA 20000 5 6 LIV 8 LIV 7 LIV ANG 0.000
+FIM
+DIMENSOES
+ V1 S1 20/50 S2 20/50 S3 20/50 VOL 1 1
+ V2 S1 20/50 VOL 1 1
+ V3 S1 20/50 VOL 1 1
+ V4 S1 20/50 VOL 1 1
+ P1 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ P2 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ P3 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ P4 R 40/40 ANG 0 BASE 20,20 FCK 'C30'
+ L1 20.000 LARM 2 1
+ L100 17.000 DFS 3.000 BALANCO LARM 2 1
+FIM
+"""
+
+
+def test_offset_slab_is_absorbed_into_parent():
+    res = run_engine(_model(LDF_SLAB_ABSORB), Config())
+    m = res.model
+    assert set(m.slabs) == {"L1"}
+    ring = [(round(m.node(e.start_node_id).x, 2), round(m.node(e.start_node_id).y, 2)) for e in m.slabs["L1"].edges]
+    assert (2.0, 1.0) not in ring and (4.0, 1.0) not in ring
+    assert m.slabs["L1"].holes == () and m.slabs["L1"].thickness == 0.20
+    assert any(c.rule == "slab-absorb-offset" and c.element_id == "L100" for c in m.changes)
+    cfg = Config(policy=ModelingPolicy(absorb_offset_slabs=False))
+    res2 = run_engine(_model(LDF_SLAB_ABSORB, cfg), cfg)
+    assert set(res2.model.slabs) == {"L1", "L100"}
+
+
+def test_wall_end_snap_moves_beam_line():
+    """Viga horizontal que encontra a parede a 9 cm da ponta e deslocada ate a ponta."""
+    text = (LDF_EXTEND.replace(" 1 15,150", " 1 15,291").replace(" 2 500,150", " 2 500,291")
+            .replace(" 3 -20,150", " 3 -20,291").replace("BASE 150,0", "BASE 291,0"))
+    res = run_engine(_model(text), Config())
+    m = res.model
+    assert res.step("snap_beams_to_wall_ends").stats["beams_moved"] >= 1
+    assert m.node("N1").y == 3.0 and m.node("N2").y == 3.0           # linha da V1 na ponta de P1 (y = 3,00)
+    assert any(c.rule.endswith("wall-end-snap") for c in m.changes)
+    cfg = Config(tolerances=Tolerances(wall_end_snap=0.05))
+    res2 = run_engine(_model(text, cfg), cfg)
+    assert res2.model.node("N1").y == 2.91

@@ -78,7 +78,7 @@ class EFrame:
 @dataclass(frozen=True, slots=True)
 class EArea:
     name: str
-    kind: str              # PANEL | FLOOR
+    kind: str              # PANEL | FLOOR | OPENING (escrito como FLOOR + OPENING "Yes")
     points: tuple[str, ...]
     story: str
     section: str
@@ -124,5 +124,6 @@ class EtabsDescription:
             "columns": sum(1 for f in self.frames if f.kind == "COLUMN"),
             "walls": sum(1 for a in self.areas if a.kind == "PANEL"),
             "slabs": sum(1 for a in self.areas if a.kind == "FLOOR"),
+            "openings": sum(1 for a in self.areas if a.kind == "OPENING"),
             "restraints": len(self.restraints), "piers": len(self.piers),
         }

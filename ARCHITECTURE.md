@@ -611,6 +611,22 @@ Integração: pipeline completo sobre `25 - Tipo` → 121/8/22/14 lidos, 74 nós
 | 5 | Conversão completa (pilares/paredes, vigas, lajes, grids) | E2K completo gerado; aceite depende da importação no ETABS |
 | 6 | Validação pós-exportação (readback) + relatório TQS × ETABS | E2K: releitura e comparação implementadas (`verify_export`); COM readback pendente |
 
+## 17b. Regras adicionadas após a primeira importação no ETABS (2026-09-19)
+
+Feedback do usuário sobre o modelo importado (itens A–D) virou regras explícitas do motor, todas configuráveis e auditadas:
+
+| Regra | Passo | O que faz | Tolerância/config |
+|---|---|---|---|
+| **C — ponta do pilar** | `snap_beams_to_wall_ends` | Viga cuja extremidade encontra o eixo de uma parede a menos de `wall_end_snap` da **ponta real** dessa parede (junções de núcleo não contam) é deslocada transversalmente — a linha inteira — até passar pela ponta ("nó do pilar"), eliminando o dente. Vários apoios na mesma viga: escolhe-se o deslocamento que minimiza o maior resíduo. No 25 - Tipo: 10 vigas (9 cm nas fachadas, 7 cm na V7). | `wall_end_snap = 0,15 m` |
+| **A — laje encosta na parede** | `snap_slab_vertices_to_column_axes` | Vértice de laje com bordo `P k` vai para a linha média da lâmina (interseção de duas linhas quando o vértice é um canto do núcleo). 12 vértices no 25 - Tipo. | meia espessura + `beam_column_snap` |
+| **B/D — sem rebaixos** | `absorb_offset_slabs` | Laje com `DFS`/`BALANCO` que compartilha bordos livres com uma laje-mãe é incorporada (a reentrância some; espessura da mãe; registrado). 6 lajes REBAIXO no 25 - Tipo. | `absorb_offset_slabs` |
+| **B/D — contorno reto + aberturas** | `simplify_slab_outlines` | Cadeia de bordos livres côncava → contorno reto pelo cruzamento das linhas de apoio vizinhas (viga × eixo do pilar), com o vazio virando **abertura** (`Slab.holes` → `AREA … OPENING "Yes"`); degraus de bordo livre ≤ `slab_dent_flatten_max` achatados; espigões e vértices colineares só de laje removidos. Resultado: L1/L2/L3/L7 retângulos, L4/L5 com 1 abertura cada. | `min_opening_area = 0,05 m²`, `slab_dent_flatten_max = 0,20 m`, `openings = "opening"` |
+| Toco de parede | `mapping._trim_stubs` | Painel terminal < `trim_wall_stub_max` sem nó na ponta é eliminado (sobra do canto do núcleo além da última viga). | `trim_wall_stub_max = 0,15 m` |
+| Grids | `grids.name_grids` | Letras em X (A, B, …) e números em Y (1, 2, …), como no modelo de referência. | `x_style`, `y_style` |
+| Divisão das walls | `mapping._split_at_nodes` | Todo nó de viga/laje sobre o eixo divide o painel (junta explícita). | `split_walls_at_nodes` |
+
+Ordem do pipeline: eixos → normalização → snap transversal → extensão → **ponta da parede** → **vértices de laje** → **absorção** → **simplificação** → merge → grids → validação.
+
 ## 18. Decisões tomadas (2026-09-19)
 
 | # | Decisão | Consequência na implementação |

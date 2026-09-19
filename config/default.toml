@@ -9,6 +9,10 @@ beam_column_snap = 0.010       # ajuste transversal viga -> eixo do pilar
 max_end_extension = 0.35       # extensao longitudinal maxima da extremidade da viga
 length_change_warning = 0.010  # variacao de comprimento tolerada apos normalizacao
 area_check_relative = 0.02     # validacao cruzada de areas/volumes LDF x LST
+wall_end_snap = 0.15           # viga a menos disto da ponta da parede e deslocada ate a ponta (no do pilar)
+min_opening_area = 0.05        # reentrancia de bordo livre menor que isto e preenchida sem abertura
+trim_wall_stub_max = 0.15      # toco terminal de parede sem no, menor que isto, e eliminado
+slab_dent_flatten_max = 0.20   # degrau de bordo livre menor que isto e achatado (a laje cresce ate a linha vizinha)
 
 [policy]
 wall_aspect_ratio = 3.0        # pilar retangular com L/B > 3 -> shell
@@ -20,9 +24,14 @@ include_load_only_nodes = false
 units = "kN_m"
 keep_tqs_origin = true
 wall_opening_merge_max = 1.0  # une laminas colineares separadas por furo <= 1,0 m (registra INFO)
+absorb_offset_slabs = true     # lajes rebaixadas/balanco entram na laje-mae (sem DFS)
+simplify_slab_outlines = true  # reentrancias de bordo livre -> contorno reto pelas linhas de apoio + abertura
+openings = "opening"           # "opening" = area OPENING no ETABS; "fill" = so preenche
 
 [grids]
-x_prefix = "X"
+x_style = "letters"            # A, B, C... (como no modelo de referencia)
+y_style = "numbers"            # 1, 2, 3...
+x_prefix = "X"                 # usado so com style = "prefix"
 y_prefix = "Y"
 start_index = 1
 secondary_grids_from_beams = false  # grids tambem nos eixos de vigas ortogonais
