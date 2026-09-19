@@ -544,7 +544,7 @@ Nomeação (`X1..Xn`, `Y1..Yn`, crescente) em módulo separado (`grids/naming.py
 
 ### 11.2 Dois escritores, uma interface
 - `ComEtabsWriter`: automação via `comtypes` (`ETABSv1.Helper.GetObject("CSI.ETABS.API.ETABSObject")` ou `CreateObject`), com verificação de versão. Permite leitura de volta (`readback.py`) para a validação pós-exportação.
-- `E2kEtabsWriter`: gera o arquivo texto `.e2k` (seções `$ STORIES`, `$ GRIDS`, `$ POINT COORDINATES`, `$ FRAME/AREA CONNECTIVITIES`, `$ FRAME/SHELL SECTIONS`...). Vantagens: testável sem ETABS instalado (golden files), diffável (auditoria), resolve o problema dos grids. Recomenda-se implementá-lo **primeiro** na Etapa 4 e o COM em seguida, mantendo os dois.
+- `E2kEtabsWriter`: gera o arquivo texto `.e2k` (separador decimal = o do Windows, vírgula em pt-BR — observado no VITREO-V05.e2k; configurável) (seções `$ STORIES`, `$ GRIDS`, `$ POINT COORDINATES`, `$ FRAME/AREA CONNECTIVITIES`, `$ FRAME/SHELL SECTIONS`...). Vantagens: testável sem ETABS instalado (golden files), diffável (auditoria), resolve o problema dos grids. Recomenda-se implementá-lo **primeiro** na Etapa 4 e o COM em seguida, mantendo os dois.
 
 ### 11.3 Grids — risco conhecido da API
 A API do ETABS não expõe criação direta de linhas de grid individuais (`GridSys` só cria/posiciona o sistema). Caminhos: (1) `DatabaseTables.SetTableForEditingArray("Grid Definitions - Grid Lines")` + `ApplyEditedTables` (funciona em ETABS ≥ 17, frágil entre versões); (2) `.e2k`. A arquitetura isola isso em `com_writer.grids` com fallback para o E2K. Elevações a partir dos grids (§11) ficam preparadas: cada `GridLine` guarda `origin_column_ids`; a geração de vistas de elevação usará os labels — implementação futura.
@@ -607,9 +607,9 @@ Integração: pipeline completo sobre `25 - Tipo` → 121/8/22/14 lidos, 74 nós
 | 1b | parser LST (pisos, avisos, quantitativos) + validação cruzada LDF×LST | **concluída**: 44/44 grandezas (áreas de pilares e lajes, volumes de vigas) conferem |
 | 2 | importador DXF | **descartada** (decisão 18.1) |
 | 3 | Geometry Engine completo (10.1) + log/auditoria + comparação | **concluída**: `tqs2etabs normalize`; 4 avisos do TQS resolvidos; 24 extensões (0,05–0,30 m) registradas; 0 erros/0 avisos de validação; 6 X + 2 Y grids; 66 testes |
-| 4 | Escritor E2K + spike COM (conectar, criar story, 1 pilar, 1 viga) | modelo abre no ETABS |
-| 5 | Conversão completa (pilares/paredes, vigas, lajes, grids) | modelo do pavimento no ETABS sem erros de conectividade |
-| 6 | Validação pós-exportação (readback) + relatório TQS × ETABS | contagens e coordenadas conferidas |
+| 4 | Escritor E2K + validação pós-exportação | **concluída** (`tqs2etabs export`): 94 pontos, 41 vigas, 42 painéis (8 piers), 14 lajes, 8 grids; releitura do .e2k sem erros; 78 testes. Formato em docs/E2K_FORMAT.md. **Pendente: abrir no ETABS** (itens NEEDS_REVIEW do doc) e o escritor COM |
+| 5 | Conversão completa (pilares/paredes, vigas, lajes, grids) | E2K completo gerado; aceite depende da importação no ETABS |
+| 6 | Validação pós-exportação (readback) + relatório TQS × ETABS | E2K: releitura e comparação implementadas (`verify_export`); COM readback pendente |
 
 ## 18. Decisões tomadas (2026-09-19)
 

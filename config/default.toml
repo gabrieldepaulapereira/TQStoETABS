@@ -27,3 +27,19 @@ y_prefix = "Y"
 start_index = 1
 secondary_grids_from_beams = false  # grids tambem nos eixos de vigas ortogonais
 grids_at_frame_columns = true
+
+[etabs]
+version = "23.2.0"
+decimal_separator = ","        # o ETABS le o E2K com o separador decimal do Windows (pt-BR: virgula)
+default_material = "C40"       # fck de vigas e lajes (nao consta do LDF/LST)
+concrete_unit_weight = 25.0    # kN/m3
+beam_cardinal_point = 8        # 8 = topo-centro (padrao ETABS), 5 = centroide
+apply_releases = false         # ARE/ARD do TQS (NEEDS_REVIEW) nao viram releases
+assign_piers = true            # paineis de parede recebem PIER com o nome do pilar TQS
+split_walls_at_nodes = true    # divide os paineis nos nos de viga/laje que caem sobre o eixo
+base_restraint = "UX UY UZ RX RY RZ"
+base_story_name = "BASE"
+grid_system = "G1"
+floor_mesh_max = 1.0
+wall_mesh_max = 1.0
+company = ""

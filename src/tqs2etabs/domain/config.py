@@ -44,10 +44,29 @@ class GridNaming:
 
 
 @dataclass(frozen=True, slots=True)
+class EtabsOptions:
+    version: str = "23.2.0"
+    decimal_separator: str = ","          # o ETABS grava/le o E2K com o separador do Windows (pt-BR: virgula)
+    default_material: str = "C40"         # fck de vigas/lajes nao esta no LDF/LST (UNKNOWN)
+    concrete_unit_weight: float = 25.0    # kN/m3
+    beam_cardinal_point: int = 8          # 8 = topo-centro (padrao do ETABS); 5 = centroide
+    apply_releases: bool = False          # ARE/ARD (NEEDS_REVIEW) nao viram releases
+    assign_piers: bool = True             # paineis de parede recebem PIER "<nome do pilar>"
+    split_walls_at_nodes: bool = True     # divide os paineis nos nos de viga/laje sobre o eixo (juntas explicitas)
+    base_restraint: str = "UX UY UZ RX RY RZ"
+    base_story_name: str = "BASE"
+    grid_system: str = "G1"
+    floor_mesh_max: float = 1.0
+    wall_mesh_max: float = 1.0
+    company: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class Config:
     tolerances: Tolerances = Tolerances()
     policy: ModelingPolicy = ModelingPolicy()
     grids: GridNaming = GridNaming()
+    etabs: EtabsOptions = EtabsOptions()
     source: str = "<defaults>"
 
 
@@ -69,5 +88,6 @@ def load_config(path: Path | str | None = None) -> Config:
         tolerances=_build(Tolerances, raw.get("tolerances", {})),
         policy=_build(ModelingPolicy, raw.get("policy", {})),
         grids=_build(GridNaming, raw.get("grids", {})),
+        etabs=_build(EtabsOptions, raw.get("etabs", {})),
         source=str(p),
     )

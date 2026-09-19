@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .application.analyze import analyze, format_summary, model_to_json
+from .application.export import export_e2k, format_export_report
 from .application.normalize import format_audit_report, normalize
 from .domain.config import load_config
 from .domain.diagnostics import Level
@@ -38,6 +39,13 @@ def main(argv: list[str] | None = None) -> int:
     no.add_argument("--report", type=Path, default=None, help="grava o relatorio em arquivo texto")
     no.add_argument("--json", type=Path, default=None, help="grava o modelo normalizado em JSON")
 
+    ex = sub.add_parser("export", help="normalize + gera o arquivo .e2k do ETABS e valida o que foi escrito")
+    ex.add_argument("ldf", type=Path)
+    ex.add_argument("--lst", type=Path, default=None)
+    ex.add_argument("--config", type=Path, default=None)
+    ex.add_argument("-o", "--out", type=Path, required=True, help="arquivo .e2k de saida")
+    ex.add_argument("--report", type=Path, default=None, help="grava o relatorio completo em arquivo texto")
+
     args = ap.parse_args(argv)
     if args.cmd == "analyze":
         if not args.ldf.exists():
@@ -65,6 +73,17 @@ def main(argv: list[str] | None = None) -> int:
             args.json.write_text(model_to_json(result.model), encoding="utf-8")
             print(f"Modelo normalizado gravado em {args.json}")
         return 1 if result.engine.has_errors else 0
+    if args.cmd == "export":
+        if not args.ldf.exists():
+            print(f"Arquivo nao encontrado: {args.ldf}", file=sys.stderr)
+            return 2
+        lst = args.lst if args.lst else _guess_lst(args.ldf)
+        result = export_e2k(args.ldf, lst, args.out, load_config(args.config))
+        text = format_export_report(result)
+        print(text)
+        if args.report:
+            args.report.write_text(text, encoding="utf-8")
+        return 1 if result.has_errors else 0
     return 0
 
 
