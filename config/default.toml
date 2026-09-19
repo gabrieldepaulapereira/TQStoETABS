@@ -19,9 +19,11 @@ slab_area_type = "shell-thin"
 include_load_only_nodes = false
 units = "kN_m"
 keep_tqs_origin = true
+wall_opening_merge_max = 1.0  # une laminas colineares separadas por furo <= 1,0 m (registra INFO)
 
 [grids]
 x_prefix = "X"
 y_prefix = "Y"
 start_index = 1
-secondary_grids_from_beams = false
+secondary_grids_from_beams = false  # grids tambem nos eixos de vigas ortogonais
+grids_at_frame_columns = true

@@ -510,12 +510,14 @@ Definição proposta de `AxisLine` por tipo de pilar:
 - `RectSection` com L/B ≤ `wall_aspect_ratio` (padrão 5): 2 linhas pelo centroide (X e Y).
 - `RectSection` com L/B > 5, `CORTINA`, `G`/`LAMINAS`: uma linha média por lâmina (lâminas colineares fundidas). Para P3: x = −4,65 (braço direito), x = −11,76 (braço esquerdo), y = 24,68 (alma).
 
-Grids gerados (após normalização) para este pavimento, com a política acima:
+Grids gerados (após normalização) para este pavimento, com a política acima (resultado do `tqs2etabs normalize`):
 
 | Direção | Coordenadas (m) | Origem |
 |---|---|---|
 | X | −27,95; −19,56; −11,76; −4,65; 3,15; 11,55 | P4; P1+P5 (cluster 0,012 cm); P3+P6 braço esq.; P3+P6 braço dir.; P2+P7; P8 |
-| Y | 15,24; 15,97; 19,70; 23,69; 24,68 | alma P6; P5+P7; P4+P8; P1+P2; alma P3 |
+| Y | 15,24; 24,68 | alma P6; alma P3 |
+
+Paredes retangulares (P1/P2/P4/P5/P7/P8) só geram o grid da sua linha média; o grid pela metade do comprimento (Y = 15,97; 19,70; 23,69) só aparece se o pilar for modelado como frame (`wall_aspect_ratio` maior). Cantos de núcleo: a alma é prolongada até as linhas médias dos braços e o braço é **dividido** no encontro (fica um toco de meia espessura da alma, 25 cm, representando o canto) — assim os painéis compartilham uma aresta e as vigas de fachada que chegam dentro da espessura da alma (V1/V2 em y = 24,74; V13/V14 em y = 15,18) encontram o eixo do braço.
 
 Nomeação (`X1..Xn`, `Y1..Yn`, crescente) em módulo separado (`grids/naming.py`) com estratégia configurável (numérica, alfabética, prefixo). Grids secundários por eixos de vigas de fachade (y = 24,74; 24,21; 15,18) são opcionais (`secondary_grids_from_beams = false`).
 
@@ -604,7 +606,7 @@ Integração: pipeline completo sobre `25 - Tipo` → 121/8/22/14 lidos, 74 nós
 | 1 | `domain` + parser LDF + CLI `analyze` (resumo: 121 nós, 8 pilares, 22 vigas, 14 lajes; geometrias reconstruídas; papéis de nós) | **concluída**: 44 testes; `tqs2etabs analyze` |
 | 1b | parser LST (pisos, avisos, quantitativos) + validação cruzada LDF×LST | **concluída**: 44/44 grandezas (áreas de pilares e lajes, volumes de vigas) conferem |
 | 2 | importador DXF | **descartada** (decisão 18.1) |
-| 3 | Geometry Engine completo (10.1) + log/auditoria + comparação | 4 avisos resolvidos; Δcomprimento ≤ 1 cm; 11 grids |
+| 3 | Geometry Engine completo (10.1) + log/auditoria + comparação | **concluída**: `tqs2etabs normalize`; 4 avisos do TQS resolvidos; 24 extensões (0,05–0,30 m) registradas; 0 erros/0 avisos de validação; 6 X + 2 Y grids; 66 testes |
 | 4 | Escritor E2K + spike COM (conectar, criar story, 1 pilar, 1 viga) | modelo abre no ETABS |
 | 5 | Conversão completa (pilares/paredes, vigas, lajes, grids) | modelo do pavimento no ETABS sem erros de conectividade |
 | 6 | Validação pós-exportação (readback) + relatório TQS × ETABS | contagens e coordenadas conferidas |

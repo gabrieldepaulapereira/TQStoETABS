@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .application.analyze import analyze, format_summary, model_to_json
+from .application.normalize import format_audit_report, normalize
 from .domain.config import load_config
 from .domain.diagnostics import Level
 
@@ -29,6 +30,14 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("-v", "--verbose", action="store_true")
     an.add_argument("--json", type=Path, default=None, help="Grava o modelo intermediario em JSON")
 
+    no = sub.add_parser("normalize", help="analyze + motor geometrico; imprime o relatorio de auditoria")
+    no.add_argument("ldf", type=Path)
+    no.add_argument("--lst", type=Path, default=None)
+    no.add_argument("--config", type=Path, default=None)
+    no.add_argument("-v", "--verbose", action="store_true", help="inclui clusters e todos os registros de alteracao")
+    no.add_argument("--report", type=Path, default=None, help="grava o relatorio em arquivo texto")
+    no.add_argument("--json", type=Path, default=None, help="grava o modelo normalizado em JSON")
+
     args = ap.parse_args(argv)
     if args.cmd == "analyze":
         if not args.ldf.exists():
@@ -41,6 +50,21 @@ def main(argv: list[str] | None = None) -> int:
             args.json.write_text(model_to_json(result.model), encoding="utf-8")
             print(f"\nModelo gravado em {args.json}")
         return 1 if any(d.level == Level.ERROR for d in result.model.diagnostics) else 0
+    if args.cmd == "normalize":
+        if not args.ldf.exists():
+            print(f"Arquivo nao encontrado: {args.ldf}", file=sys.stderr)
+            return 2
+        lst = args.lst if args.lst else _guess_lst(args.ldf)
+        result = normalize(args.ldf, lst, load_config(args.config))
+        text = format_audit_report(result, verbose=args.verbose)
+        print(text)
+        if args.report:
+            args.report.write_text(text, encoding="utf-8")
+            print(f"\nRelatorio gravado em {args.report}")
+        if args.json:
+            args.json.write_text(model_to_json(result.model), encoding="utf-8")
+            print(f"Modelo normalizado gravado em {args.json}")
+        return 1 if result.engine.has_errors else 0
     return 0
 
 

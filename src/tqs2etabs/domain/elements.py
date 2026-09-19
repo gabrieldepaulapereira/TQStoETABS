@@ -79,6 +79,28 @@ class PolygonSection:
 
 
 @dataclass(frozen=True, slots=True)
+class AxisSegment:
+    """Linha media de uma lamina de parede (ou linha de eixo de pilar-frame)."""
+    start: Point
+    end: Point
+    thickness: float
+
+    @property
+    def length(self) -> float:
+        return self.start.distance_to(self.end)
+
+    @property
+    def direction(self) -> str:
+        """'X' se paralelo ao eixo X, 'Y' se paralelo a Y, senao 'other'."""
+        dx, dy = abs(self.end.x - self.start.x), abs(self.end.y - self.start.y)
+        if dy <= 1e-6 * max(1.0, dx):
+            return "X"
+        if dx <= 1e-6 * max(1.0, dy):
+            return "Y"
+        return "other"
+
+
+@dataclass(frozen=True, slots=True)
 class Column:
     id: str
     name: str
@@ -87,6 +109,7 @@ class Column:
     reference_node_id: str
     kind_hint: ColumnKind
     laminas: tuple[Polygon, ...] = ()
+    axes: tuple[AxisSegment, ...] = ()        # preenchido pelo geometry_engine (paredes)
     section_above: Polygon | None = None      # PSU (NEEDS_REVIEW: lance superior)
     material_ref: str | None = None
     fck: str | None = None

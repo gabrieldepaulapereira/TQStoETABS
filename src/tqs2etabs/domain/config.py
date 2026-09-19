@@ -31,6 +31,7 @@ class ModelingPolicy:
     include_load_only_nodes: bool = False
     units: str = "kN_m"
     keep_tqs_origin: bool = True
+    wall_opening_merge_max: float = 1.0    # laminas colineares separadas por vao <= isto sao unidas (furo)
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,7 @@ class GridNaming:
     y_prefix: str = "Y"
     start_index: int = 1
     secondary_grids_from_beams: bool = False
+    grids_at_frame_columns: bool = True     # pilar-frame gera grid X e Y pelo centroide
 
 
 @dataclass(frozen=True, slots=True)
