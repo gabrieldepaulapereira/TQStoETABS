@@ -1,0 +1,27 @@
+# Configuracao padrao do conversor TQS -> ETABS.
+# Todas as distancias em metros. Ver ARCHITECTURE.md secoes 10 e 18.
+
+[tolerances]
+coordinate_cluster = 0.005     # mesma linha de alinhamento (5 mm)
+rounding_decimals = 2          # coordenadas finais com 2 casas (cm)
+node_merge = 0.005             # nos coincidentes
+beam_column_snap = 0.010       # ajuste transversal viga -> eixo do pilar
+max_end_extension = 0.35       # extensao longitudinal maxima da extremidade da viga
+length_change_warning = 0.010  # variacao de comprimento tolerada apos normalizacao
+area_check_relative = 0.02     # validacao cruzada de areas/volumes LDF x LST
+
+[policy]
+wall_aspect_ratio = 3.0        # pilar retangular com L/B > 3 -> shell
+polygon_always_wall = true     # pilar poligonal (G) -> shell
+ignore_vertical_offsets = true # DFS de vigas e lajes ignorado (tudo no nivel do piso)
+stair_area_type = "membrane"   # laje 'ESCADA' -> elemento membrane
+slab_area_type = "shell-thin"
+include_load_only_nodes = false
+units = "kN_m"
+keep_tqs_origin = true
+
+[grids]
+x_prefix = "X"
+y_prefix = "Y"
+start_index = 1
+secondary_grids_from_beams = false
