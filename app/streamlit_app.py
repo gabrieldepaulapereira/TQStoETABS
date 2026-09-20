@@ -97,15 +97,22 @@ def show_diags(diags, levels=("ERROR", "WARNING"), limit=60) -> None:
 
 
 # --------------------------------------------------------------------------- estado
-def _find_building_root(folder: Path) -> Path:
-    """Pasta que contem as subpastas de planta (aceita um nivel a mais dentro do zip)."""
+def _find_building_root(folder: Path, max_depth: int = 4) -> Path:
+    """Pasta que contem as subpastas de planta. Aceita niveis a mais (zip com a pasta dentro, usuario que
+    escolheu a pasta-mae, Desktop-TESTE-TESTE...): busca em largura ate max_depth e devolve a mais rasa."""
     def has_plans(p: Path) -> bool:
-        return any(q.is_dir() and any(f.suffix.upper() == ".LDF" for f in q.iterdir()) for q in p.iterdir() if q.is_dir())
-    if has_plans(folder):
-        return folder
-    for sub in folder.iterdir():
-        if sub.is_dir() and has_plans(sub):
-            return sub
+        try:
+            return any(q.is_dir() and any(f.suffix.upper() == ".LDF" for f in q.iterdir()) for q in p.iterdir() if q.is_dir())
+        except OSError:
+            return False
+    level = [folder]
+    for _ in range(max_depth + 1):
+        for p in level:
+            if has_plans(p):
+                return p
+        level = [q for p in level for q in p.iterdir() if q.is_dir()]
+        if not level:
+            break
     return folder
 
 
@@ -156,12 +163,15 @@ def windows_folder_dialog(initial: str = "") -> str | None:
         return None
 
 
+PISO_COLS = ["Importar", "Piso", "Título", "Planta", "Cota (m)", "Pé-direito (m)", "fck pilares", "fck vigas", "fck lajes"]
+
+
 def pisos_to_df(bd: BuildingDefinition) -> pd.DataFrame:
     rows = [{"Importar": True, "Piso": p.index, "Título": p.title, "Planta": p.plan_tag, "Cota (m)": p.elevation,
              "Pé-direito (m)": p.height, "fck pilares": p.materials.get("pilares", ""),
              "fck vigas": p.materials.get("vigas", ""), "fck lajes": p.materials.get("lajes", "")}
             for p in bd.pisos]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=PISO_COLS)      # colunas fixas mesmo sem pisos
 
 
 def df_to_pisos(df: pd.DataFrame, bd: BuildingDefinition, base_elevation: float) -> tuple[PisoDefinition, ...]:
@@ -295,6 +305,12 @@ errs = [d for d in bd.diagnostics if d.level == Level.ERROR]
 if errs:
     st.error("A varredura encontrou problemas que impedem a geração:")
     show_diags(errs, ("ERROR",))
+if not bd.pisos:
+    found = ", ".join(f"{t} ({p.name})" for t, p in bd.plans.items()) or "nenhuma"
+    st.error("Nenhum pavimento encontrado. O app precisa, em cada pasta de planta, do par `<planta>.LDF` + "
+             "`<planta>.LST` com a tabela **Definição de Pisos** (gerada pelo TQS ao processar o edifício). "
+             f"Plantas reconhecidas: {found}. Confira a pasta escolhida (deve ser a pasta do edifício, que contém "
+             "as subpastas das plantas) e os avisos em *Diagnóstico da varredura*.")
 
 tab_pisos, tab_plantas, tab_mat, tab_cat, tab_diag = st.tabs(["Pavimentos", "Plantas", "Materiais", "Concreto (TQS)",
                                                               "Diagnóstico da varredura"])
