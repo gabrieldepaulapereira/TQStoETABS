@@ -57,6 +57,22 @@ Varre a pasta do edifício (uma subpasta por planta), lê os `.LDF`/`.LST` de ca
 eixos dos pilares alinhados entre pavimentos) e gera um único `.e2k` com todos os stories (`SIMILARTO`
 para pisos repetidos, material por story, piers com o nome TQS). Detalhes em [docs/BUILDING_FILES.md](docs/BUILDING_FILES.md).
 
+## Interface web (Streamlit)
+
+```bash
+pip install -r requirements.txt
+streamlit run app/streamlit_app.py
+```
+
+Gerenciador de importação: aponte a pasta do edifício TQS (ou envie um `.zip` dela), revise/edite os
+pavimentos (cota, pé-direito, planta, fck), adicione pavimentos replicando uma planta, ajuste as regras
+de modelagem e gere o `.e2k` + relatório de auditoria, com o desenho de cada planta normalizada.
+
+**Deploy no Streamlit Community Cloud** (igual ao app de pilares): repositório no GitHub (pode ser
+privado) → share.streamlit.io → *New app* → arquivo principal `app/streamlit_app.py`, Python 3.12+.
+`requirements.txt` da raiz já lista `streamlit`, `pandas` e `plotly`; o pacote `tqs2etabs` é carregado
+de `src/` pelo próprio app. Na nuvem só a opção **.zip** funciona (o servidor não enxerga sua pasta local).
+
 ## Testes
 
 ```bash

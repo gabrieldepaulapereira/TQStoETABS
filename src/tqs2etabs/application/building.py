@@ -53,7 +53,13 @@ class BuildingResult:
 
 def convert_building(folder: Path | str, output: Path | str | None, config: Config | None = None) -> BuildingResult:
     config = config or load_config()
-    bd = scan_building(folder, config)
+    return convert_building_definition(scan_building(folder, config), output, config)
+
+
+def convert_building_definition(bd: BuildingDefinition, output: Path | str | None,
+                                config: Config | None = None) -> BuildingResult:
+    """Converte uma definicao de edificio (possivelmente editada pelo usuario) em .e2k."""
+    config = config or load_config()
     plans: dict[str, PlanResult] = {}
     reference: dict[str, Column] = {}      # pilar -> coluna (com eixos) da planta mais baixa em que existe
 
