@@ -32,7 +32,9 @@ def export_e2k(ldf_path: Path | str, lst_path: Path | str | None, output: Path |
     desc, map_diags = build_description(norm.model, config)
     label = Path(output).name if output else "model.e2k"
     text = write_e2k_text(desc, config.etabs, label)
-    verify_diags = verify_export(norm.model, desc, read_e2k_text(text, config.etabs.decimal_separator))
+    verify_diags = verify_export(norm.model, desc, read_e2k_text(text, config.etabs.decimal_separator),
+                                 include_columns=config.etabs.include_columns, include_beams=config.etabs.include_beams,
+                                 include_slabs=config.etabs.include_slabs)
     out_path = None
     if output:
         out_path = Path(output)

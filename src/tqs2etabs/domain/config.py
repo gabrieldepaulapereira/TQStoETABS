@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +69,10 @@ class EtabsOptions:
     wall_mesh_max: float = 1.0
     company: str = ""
     export_loads: bool = True             # cargas de uso: ADI de laje e DIS de viga (casos 3 e 4 do LDF)
+    include_columns: bool = True          # selecao de elementos a importar
+    include_beams: bool = True
+    include_slabs: bool = True
+    e_overrides: dict[str, float] = field(default_factory=dict)   # classe -> E adotado (MPa); vence CONCRETO.DAT/NBR
     tf_to_kn: float = 9.80665
     pattern_dead_extra: str = "SDL"       # caso 3 (permanentes) -> Super Dead
     pattern_live: str = "LIVE"            # caso 4 (acidentais)  -> Live

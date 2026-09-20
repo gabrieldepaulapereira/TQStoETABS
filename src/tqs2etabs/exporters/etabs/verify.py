@@ -11,15 +11,16 @@ from .e2k_reader import E2kModel
 
 def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
                   coord_tol: float = 0.0005, plan_key: str = "", name_prefix: str = "",
-                  check_counts: bool = True) -> tuple[Diagnostic, ...]:
+                  check_counts: bool = True, include_columns: bool = True, include_beams: bool = True,
+                  include_slabs: bool = True) -> tuple[Diagnostic, ...]:
     diag = DiagnosticCollector()
     V = Source.VALIDATION
 
     def key(nid: str) -> str:
         return f"{plan_key}:{nid}" if plan_key else nid
 
-    # pontos: todo no estrutural tem ponto com as mesmas coordenadas
-    for n in model.structural_nodes():
+    # pontos: todo no estrutural tem ponto com as mesmas coordenadas (so quando vigas/lajes sao exportadas)
+    for n in (model.structural_nodes() if (include_beams or include_slabs) else ()):
         pname = desc.node_to_point.get(key(n.id))
         if pname is None or pname not in e2k.points:
             diag.error("XPT-E-NODE-MISSING", f"No {n.id} sem ponto no E2K", V, refs=(n.id,))
@@ -56,7 +57,7 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
             diag.error("XPT-E-STORY", f"story {st.name}: altura {e2k.stories.get(st.name)} x {st.height}", V)
 
     # vigas: cada trecho do modelo e uma LINE BEAM entre os pontos certos, com a secao b/h
-    for beam in model.beams.values():
+    for beam in (model.beams.values() if include_beams else ()):
         multi = len(beam.segments) > 1
         for k, seg in enumerate(beam.segments, start=1):
             name = f"{name_prefix}{beam.id}" + (f"-{k}" if multi else "")
@@ -73,7 +74,7 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
                 diag.error("XPT-E-BEAM-SECTION", f"{name}: secao {sec} x esperado B{b}X{h}", V, refs=(beam.id,))
 
     # paredes: numero de paineis por pilar = numero de linhas de eixo
-    for col in model.columns.values():
+    for col in (model.columns.values() if include_columns else ()):
         if not col.axes:
             continue
         cname = f"{name_prefix}{col.id}"
@@ -89,7 +90,7 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
                 diag.error("XPT-E-WALL-PIER", f"{pname}: pier {e2k.area_piers.get(pname)} x {col.id}", V, refs=(col.id,))
 
     # lajes: mesmos vertices, mesma ordem
-    for slab in model.slabs.values():
+    for slab in (model.slabs.values() if include_slabs else ()):
         a = e2k.areas.get(f"{name_prefix}{slab.id}")
         if a is None:
             diag.error("XPT-E-SLAB-MISSING", f"{slab.id} nao encontrada", V, refs=(slab.id,))

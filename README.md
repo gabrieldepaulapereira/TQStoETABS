@@ -68,6 +68,15 @@ Gerenciador de importação: aponte a pasta do edifício TQS (ou envie um `.zip`
 pavimentos (cota, pé-direito, planta, fck), adicione pavimentos replicando uma planta, ajuste as regras
 de modelagem e gere o `.e2k` + relatório de auditoria, com o desenho de cada planta normalizada.
 
+- **O que importar** (barra lateral): pilares/paredes, vigas, lajes e cargas de uso — o que estiver
+  desmarcado não vai para o E2K (`EtabsOptions.include_columns/include_beams/include_slabs/export_loads`).
+- **Pavimentos**: coluna *Importar* por piso; um piso desmarcado é pulado e o story acima passa a ter a
+  altura entre as cotas restantes.
+- **Materiais**: por classe, E *atual* (CONCRETO.DAT do TQS), *Prudêncio* (tabela do modelo MARAMBAIA) e
+  *NBR 6118* (Ecs = αi·5600·√fck); escolha a fonte ou um valor *manual* (`EtabsOptions.e_overrides`).
+
+Repositório: https://github.com/gabrieldepaulapereira/TQStoETABS
+
 **Deploy no Streamlit Community Cloud** (igual ao app de pilares): repositório no GitHub (pode ser
 privado) → share.streamlit.io → *New app* → arquivo principal `app/streamlit_app.py`, Python 3.12+.
 `requirements.txt` da raiz já lista `streamlit`, `pandas` e `plotly`; o pacote `tqs2etabs` é carregado

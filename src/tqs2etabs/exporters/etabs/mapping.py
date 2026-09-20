@@ -149,7 +149,9 @@ class EtabsMapper:
                                   Source.EXPORTER)
                 return self.material(self.opt.default_material)
             cat = self.catalog.get(key)
-            if cat and cat.e_secant_mpa:
+            if key in self.opt.e_overrides and self.opt.e_overrides[key]:
+                e_mpa, src = float(self.opt.e_overrides[key]), "escolha do usuario"
+            elif cat and cat.e_secant_mpa:
                 e_mpa, src = cat.e_secant_mpa, "CONCRETO.DAT"
             else:
                 e_mpa, src = concrete_e_modulus_nbr6118(fck), "NBR 6118 8.2.8"
@@ -208,8 +210,13 @@ class EtabsMapper:
             preferred = None if plan_key else (re.sub(r"\D", "", nid) or nid)
             return self.point_for_coord(n.point, node_key(nid), story_names, preferred)
 
-        for n in model.structural_nodes():
-            point_for_node(n.id)
+        if opt.include_beams or opt.include_slabs:
+            for n in model.structural_nodes():
+                point_for_node(n.id)
+        skipped = [k for k, on in (("pilares", opt.include_columns), ("vigas", opt.include_beams),
+                                   ("lajes", opt.include_slabs), ("cargas", opt.export_loads)) if not on]
+        if skipped and (note := f"Elementos nao importados por escolha do usuario: {', '.join(skipped)}") not in self.notes:
+            self.notes.append(note)
 
         def mat_for(story: str, kind: str, explicit: str | None) -> str:
             if explicit:
@@ -218,7 +225,7 @@ class EtabsMapper:
 
         # ---------------------------------------------------- pilares/paredes
         base_points: set[str] = set()
-        for col in model.columns.values():
+        for col in (model.columns.values() if opt.include_columns else ()):
             oname = f"{name_prefix}{ascii_name(col.name)}"
             if col.kind_hint == ColumnKind.WALL:
                 if not col.axes:
@@ -266,7 +273,7 @@ class EtabsMapper:
                 self.restraints.append(ERestraint(p, opt.base_story_name, opt.base_restraint))
 
         # ---------------------------------------------------------- vigas
-        for beam in model.beams.values():
+        for beam in (model.beams.values() if opt.include_beams else ()):
             multi = len(beam.segments) > 1
             for k, seg in enumerate(beam.segments, start=1):
                 if seg.depth <= 0 or seg.width <= 0:
@@ -292,7 +299,7 @@ class EtabsMapper:
                 self.notes.append(note)
 
         # ---------------------------------------------------------- lajes
-        for slab in model.slabs.values():
+        for slab in (model.slabs.values() if opt.include_slabs else ()):
             modeling = "Membrane" if (slab.is_stair and cfg.policy.stair_area_type == "membrane") else "ShellThin"
             pts = tuple(point_for_node(e.start_node_id) for e in slab.edges)
             if len(pts) < 3:

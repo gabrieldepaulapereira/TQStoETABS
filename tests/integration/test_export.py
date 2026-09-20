@@ -79,3 +79,27 @@ def test_frame_policy_export(ldf_path, lst_path, tmp_path):
     cols = {f.name: f for f in res.description.frames if f.kind == "COLUMN"}
     assert cols["P5"].section == "C176X40-C60" and cols["P5"].angle == 90.0
     assert not any(d.level == Level.ERROR for d in res.diagnostics)
+
+
+def test_element_selection_and_e_override(ldf_path, lst_path, tmp_path):
+    """Selecao de elementos (sem vigas/lajes) e E adotado pelo usuario por classe."""
+    from dataclasses import replace
+    from tqs2etabs.domain.materials import material_options, nbr6118_ecs
+
+    base = Config()
+    cfg = replace(base, etabs=replace(base.etabs, include_beams=False, include_slabs=False,
+                                      e_overrides={"C60": 42000.0}))
+    res = export_e2k(ldf_path, lst_path, tmp_path / "sel.e2k", cfg)
+    c = res.description.counts()
+    assert c["beams"] == 0 and c["slabs"] == 0 and c["walls"] >= 16 and c["piers"] == 8
+    assert not any(d.level == Level.ERROR for d in res.diagnostics)
+    mats = {m.name: m for m in res.description.materials}
+    assert mats["C60"].e_kn_m2 == pytest.approx(42000.0 * 1000.0)
+    assert "C40" not in mats                      # so materiais usados (C40 era das lajes)
+    assert mats["C60"].source == "escolha do usuario"
+    assert nbr6118_ecs(40.0) == pytest.approx(31876.0, abs=1.0)
+    text = (tmp_path / "sel.e2k").read_text(encoding="utf-8")
+    assert "LINE  " not in text or "  BEAM" not in text
+    assert any("nao importados" in n for n in res.description.notes)
+    opts = material_options("C50", 40000.0)
+    assert opts == {"atual": 40000.0, "prudencio": 40000.0, "nbr6118": 36628.0}   # 0,925 * 5600 * sqrt(50)

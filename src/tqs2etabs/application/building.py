@@ -116,7 +116,8 @@ def convert_building_definition(bd: BuildingDefinition, output: Path | str | Non
         if bd.plans[tag].is_base:
             continue
         diags.extend(verify_export(pr.normalization.model, desc, e2k, plan_key=tag, name_prefix=f"{tag}.",
-                                   check_counts=first))
+                                   check_counts=first, include_columns=config.etabs.include_columns,
+                                   include_beams=config.etabs.include_beams, include_slabs=config.etabs.include_slabs))
         first = False
     out_path = None
     if output:
