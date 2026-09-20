@@ -115,6 +115,32 @@ class EArea:
 
 
 @dataclass(frozen=True, slots=True)
+class ELoadPattern:
+    name: str
+    kind: str              # Dead | Super Dead | Live
+    self_weight: float = 0.0
+    mass_factor: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class EAreaLoad:
+    area: str
+    story: str
+    pattern: str
+    value: float           # kN/m2 (gravidade)
+    source: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ELineLoad:
+    frame: str
+    story: str
+    pattern: str
+    value: float           # kN/m (gravidade)
+    source: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ERestraint:
     point: str
     story: str
@@ -138,6 +164,9 @@ class EtabsDescription:
     piers: tuple[str, ...]
     notes: tuple[str, ...] = ()
     node_to_point: dict[str, str] = field(default_factory=dict)   # "<plan>:<no>" -> ponto (single: "<no>")
+    load_patterns: tuple[ELoadPattern, ...] = ()
+    area_loads: tuple[EAreaLoad, ...] = ()
+    line_loads: tuple[ELineLoad, ...] = ()
 
     @property
     def story(self) -> EStory:
@@ -160,4 +189,5 @@ class EtabsDescription:
             "frame_assignments": sum(len(f.assignments) for f in self.frames),
             "area_assignments": sum(len(a.assignments) for a in self.areas),
             "restraints": len(self.restraints), "piers": len(self.piers),
+            "area_loads": len(self.area_loads), "line_loads": len(self.line_loads),
         }

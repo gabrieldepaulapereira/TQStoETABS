@@ -97,7 +97,7 @@ def test_building_e2k_text(building):
     assert 'STORY "1-Tipo"  HEIGHT 3,06 MASTERSTORY "Yes"  ' in text
     assert 'STORY "BASE"  ELEV -0,5 ' in text
     assert 'MATERIAL  "C60"    SYMTYPE "Isotropic"  E 42000000  U 0,2' in text
-    assert text.count('LINEASSIGN  "TIPO1.V1-1"') == 5
+    assert text.count('LINEASSIGN  "TIPO1.V1"') == 5          # V1 dividida nas paredes: 1o pedaco mantem o nome
     assert 'SECTION "W30-C60"  PIER  "P2"' in text
     e2k = read_e2k_text(text, ",")
     assert e2k.stories["BASE"] == -0.5 and e2k.stories["6-Tipo 2"] == 3.15
@@ -110,8 +110,13 @@ def test_building_alignment_rules_in_tipo1(building):
     m = building.plans["TIPO1"].normalization.model
     val = building.plans["TIPO1"].normalization.engine.step("validate_model").stats
     assert val["ERROR"] == 0 and val["WARNING"] == 0
-    # V1 corre sobre o eixo das paredes P4/P7/P9/P13 (x = 0,15): nao pode ser deslocada para a ponta do P16
-    assert all(m.node(n).x == 0.15 for n in m.beams["V1"].axis)
+    # V1 corre sobre o eixo das paredes P4/P7/P9/P13 (x = 0,15): nao pode ser deslocada para a ponta do P16;
+    # os trechos sobre as paredes sao removidos e a viga vira pedacos entre paredes (V1, V1.2, ...)
+    assert all(m.node(n).x == 0.15 for b in ("V1", "V1.2", "V1.3") for n in m.beams[b].axis)
+    assert m.node(m.beams["V1"].axis[-1]).y == 4.51            # para na ponta do P13
+    assert m.node(m.beams["V1.2"].axis[0]).y == 6.26           # recomeca na outra ponta do P13
+    ov = building.plans["TIPO1"].normalization.engine.step("trim_beams_over_walls").stats
+    assert ov["beams_trimmed"] == 7 and ov["removed_length"] > 30
     # V5 (x = 20,0) vai para a ponta da parede P8 (20,15) e V6 (y = 3,35) para a ponta dos bracos (3,5)
     assert all(m.node(n).x == 20.15 for n in m.beams["V5"].axis)
     assert all(m.node(n).y == 3.5 for n in m.beams["V6"].axis)

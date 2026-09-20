@@ -68,6 +68,11 @@ class EtabsOptions:
     floor_mesh_max: float = 1.0
     wall_mesh_max: float = 1.0
     company: str = ""
+    export_loads: bool = True             # cargas de uso: ADI de laje e DIS de viga (casos 3 e 4 do LDF)
+    tf_to_kn: float = 9.80665
+    pattern_dead_extra: str = "SDL"       # caso 3 (permanentes) -> Super Dead
+    pattern_live: str = "LIVE"            # caso 4 (acidentais)  -> Live
+    mass_live_factor: float = 0.25
 
 
 @dataclass(frozen=True, slots=True)

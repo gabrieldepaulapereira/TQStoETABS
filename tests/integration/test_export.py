@@ -77,5 +77,5 @@ def test_frame_policy_export(ldf_path, lst_path, tmp_path):
     c = res.description.counts()
     assert c["columns"] == 4 and c["piers"] == 4            # P1/P2/P5/P7 como frames
     cols = {f.name: f for f in res.description.frames if f.kind == "COLUMN"}
-    assert cols["P5"].section == "C40X176-C60" and cols["P5"].angle == 0.0
+    assert cols["P5"].section == "C176X40-C60" and cols["P5"].angle == 90.0
     assert not any(d.level == Level.ERROR for d in res.diagnostics)

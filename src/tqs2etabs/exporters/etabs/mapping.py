@@ -20,8 +20,8 @@ from ...domain.diagnostics import Diagnostic, DiagnosticCollector, Source
 from ...domain.elements import ColumnKind, RectSection
 from ...domain.geometry import Point
 from ...domain.model import StructuralModel
-from .description import (EArea, EAssign, EFrame, EFrameSection, EGrid, EMaterial, EPoint, ERestraint,
-                          EShellSection, EStory, EtabsDescription)
+from .description import (EArea, EAreaLoad, EAssign, EFrame, EFrameSection, EGrid, ELineLoad, ELoadPattern,
+                          EMaterial, EPoint, ERestraint, EShellSection, EStory, EtabsDescription)
 
 
 def ascii_name(text: str) -> str:
@@ -48,10 +48,9 @@ def _cm(v: float) -> str:
 
 
 def etabs_column_angle(tqs_angle_deg: float) -> float:
-    """Rotacao da secao no ETABS. Eixo local 3 de um pilar vertical = +Y global (ANG 0);
-    D (depth) e medido ao longo de 3. TQS: ANG = direcao de L a partir de +X. Logo
-    ETABS = TQS - 90 (mod 180). NEEDS_REVIEW: conferir orientacao no ETABS."""
-    return (tqs_angle_deg - 90.0) % 180.0
+    """Rotacao da secao no ETABS (confirmado na importacao): a secao e escrita com
+    D = B do TQS e B = L do TQS, e o angulo do ETABS e o proprio ANG do TQS (mod 180)."""
+    return tqs_angle_deg % 180.0
 
 
 def _split_at_nodes(seg, model: StructuralModel, tol: float) -> list[tuple[Point, Point, float]]:
@@ -128,6 +127,8 @@ class EtabsMapper:
         self.piers: list[str] = []
         self.grids: dict[tuple[str, float], EGrid] = {}
         self.tol = config.tolerances.node_merge
+        self.area_loads: list[EAreaLoad] = []
+        self.line_loads: list[ELineLoad] = []
 
     # ------------------------------------------------------------ pavimentos
     def add_story(self, name: str, elevation: float, height: float, similar_to: str | None = None) -> str:
@@ -248,7 +249,7 @@ class EtabsMapper:
                 p = self.point_for_coord(c, None, story_names)
                 sec_geom = col.section
                 if isinstance(sec_geom, RectSection):
-                    dims = (sec_geom.length, sec_geom.width)
+                    dims = (sec_geom.width, sec_geom.length)      # D = B do TQS, B = L do TQS (feedback da importacao)
                     angle = etabs_column_angle(sec_geom.angle_deg)
                 else:
                     side = math.sqrt(col.area)
@@ -308,6 +309,10 @@ class EtabsMapper:
                     self.areas.append(EArea(f"{sname}-O{k}", "OPENING", hpts,
                                             tuple(EAssign(s, "") for s in story_names), slab.id))
 
+        # ---------------------------------------------------------- cargas
+        if opt.export_loads:
+            self._add_loads(model, story_names, name_prefix, plan_key)
+
         # ---------------------------------------------------------- grids
         for g in model.grids:
             key = (g.direction, round(g.coordinate, 4))
@@ -316,6 +321,54 @@ class EtabsMapper:
         if unused:
             self.diag.info("EXP-I-NODES-SKIPPED", f"{plan_key or 'planta'}: {len(unused)} nos de carga/orfaos nao exportados",
                            Source.EXPORTER)
+
+    # -------------------------------------------------------------- cargas
+    def _add_loads(self, model: StructuralModel, story_names: tuple[str, ...], name_prefix: str, plan_key: str) -> None:
+        """ADI de lajes e DIS de vigas: caso 3 -> permanente adicional, caso 4 -> acidental (tf -> kN)."""
+        opt = self.opt
+        by_number = {lc.number: lc for lc in model.load_cases}
+        mapping = {}
+        if 3 in by_number:
+            mapping[3] = opt.pattern_dead_extra
+        if 4 in by_number:
+            mapping[4] = opt.pattern_live
+        if not mapping and 1 in by_number:
+            mapping[1] = opt.pattern_dead_extra
+            self.notes.append(f"{plan_key or 'planta'}: LDF sem casos 3/4; caso 1 (total) exportado como {opt.pattern_dead_extra}")
+        if not mapping:
+            return
+        area_names = {a.source: a.name for a in self.areas if a.kind == "FLOOR" and a.name.startswith(name_prefix)}
+        beam_names: dict[str, list[str]] = {}
+        for f in self.frames:
+            if f.kind == "BEAM" and f.name.startswith(name_prefix):
+                beam_names.setdefault(f.source, []).append(f.name)
+        skipped: dict[str, int] = {}
+        for number, pattern in mapping.items():
+            for it in by_number[number].items:
+                value = it.value * opt.tf_to_kn
+                if it.kind == "ADI" and it.element_id in area_names:
+                    for s in story_names:
+                        self.area_loads.append(EAreaLoad(area_names[it.element_id], s, pattern, round(value, 4),
+                                                         f"{plan_key}:{it.element_id} caso {number}"))
+                elif it.kind == "DIS" and it.element_id in beam_names:
+                    for fname in beam_names[it.element_id]:
+                        for s in story_names:
+                            self.line_loads.append(ELineLoad(fname, s, pattern, round(value, 4),
+                                                             f"{plan_key}:{it.element_id} caso {number}"))
+                else:
+                    key = it.kind if it.kind in ("DIP", "ARE") else f"{it.kind} ({it.element_id} ausente)"
+                    skipped[key] = skipped.get(key, 0) + 1
+        for kind, n in skipped.items():
+            self.notes.append(f"{plan_key or 'planta'}: {n} carga(s) {kind} nao exportadas (so ADI de laje e DIS de viga)")
+
+    def _load_patterns(self) -> tuple[ELoadPattern, ...]:
+        pats = [ELoadPattern("DEAD", "Dead", 1.0, 1.0)]
+        used = {l.pattern for l in self.area_loads} | {l.pattern for l in self.line_loads}
+        if self.opt.pattern_dead_extra in used:
+            pats.append(ELoadPattern(self.opt.pattern_dead_extra, "Super Dead", 0.0, 1.0))
+        if self.opt.pattern_live in used:
+            pats.append(ELoadPattern(self.opt.pattern_live, "Live", 0.0, self.opt.mass_live_factor))
+        return tuple(pats)
 
     # ------------------------------------------------------------ resultado
     def build(self) -> tuple[EtabsDescription, tuple[Diagnostic, ...]]:
@@ -331,7 +384,8 @@ class EtabsMapper:
             grids=self._renamed_grids(), materials=tuple(self.materials.values()),
             frame_sections=tuple(self.frame_sections.values()), shell_sections=tuple(self.shell_sections.values()),
             points=points, frames=tuple(self.frames), areas=tuple(self.areas), restraints=tuple(self.restraints),
-            piers=tuple(self.piers), notes=tuple(self.notes), node_to_point=dict(self.node_to_point))
+            piers=tuple(self.piers), notes=tuple(self.notes), node_to_point=dict(self.node_to_point),
+            load_patterns=self._load_patterns(), area_loads=tuple(self.area_loads), line_loads=tuple(self.line_loads))
         self.diag.info("EXP-I-SUMMARY", "ETABS description: " + ", ".join(f"{k}={v}" for k, v in desc.counts().items()),
                        Source.EXPORTER)
         return desc, self.diag.as_tuple()

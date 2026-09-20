@@ -131,17 +131,28 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
                 put("AREA ASSIGNS", f'  AREAASSIGN  "{a.name}"  "{asg.story}"  SECTION "{asg.section}"  OBJMESHTYPE "DEFAULT"  '
                                     f'ADDRESTRAINT "No"  CARDINALPOINT "TOP"  TRANSFORMSTIFFNESSFOROFFSETS "No"  ')
 
-    put("LOAD PATTERNS", '  LOADPATTERN "DEAD"  TYPE  "Dead"  SELFWEIGHT  1')
+    patterns = desc.load_patterns or (type("P", (), {"name": "DEAD", "kind": "Dead", "self_weight": 1.0, "mass_factor": 1.0})(),)
+    for lp in patterns:
+        put("LOAD PATTERNS", f'  LOADPATTERN "{lp.name}"  TYPE  "{lp.kind}"  SELFWEIGHT  {n(lp.self_weight)}')
+    for ll in desc.line_loads:
+        put("FRAME OBJECT LOADS", f'  LINELOAD  "{ll.frame}"  "{ll.story}"  TYPE "UNIFF"  DIR "GRAV"  LC "{ll.pattern}"  FVAL {n(ll.value)}')
+    for al in desc.area_loads:
+        put("SHELL OBJECT LOADS", f'  AREALOAD  "{al.area}"  "{al.story}"  TYPE "UNIFF"  DIR "GRAV"  LC "{al.pattern}"  FVAL {n(al.value)}')
     put("ANALYSIS OPTIONS",
         '  ACTIVEDOF "UX UY UZ RX RY RZ"  ',
         '  MODELHINGESINLINKS "No"  ',
         f'  AUTOMESHOPTIONS  MESHTYPE  "GENERAL"  FLOORMESHMAXSIZE  {n(opt.floor_mesh_max)} WALLMESHMAXSIZE  {n(opt.wall_mesh_max)} ')
-    put("MASS SOURCE", f.fixed(T.MASS_SOURCE))
+    put("MASS SOURCE", f.fixed(T.MASS_SOURCE_HEADER))
+    for lp in patterns:
+        if lp.mass_factor > 0:
+            put("MASS SOURCE", f'  MASSSOURCELOAD  "MsSrc1"  "{lp.name}"  {n(lp.mass_factor)} ')
     put("LOAD CASES",
         '  LOADCASE "Modal"  TYPE  "Modal - Eigen"  INITCOND  "PRESET"  ',
-        '  LOADCASE "Modal"  MAXMODES  12 MINMODES  12 EIGENSHIFTFREQ  0 EIGENCUTOFF  0 EIGENTOL  1E-07 ',
-        '  LOADCASE "DEAD"  TYPE  "Linear Static"  INITCOND  "PRESET"  ',
-        '  LOADCASE "DEAD"  LOADPAT  "DEAD"  SF  1 ')
+        '  LOADCASE "Modal"  MAXMODES  12 MINMODES  12 EIGENSHIFTFREQ  0 EIGENCUTOFF  0 EIGENTOL  1E-07 ')
+    for lp in patterns:
+        put("LOAD CASES",
+            f'  LOADCASE "{lp.name}"  TYPE  "Linear Static"  INITCOND  "PRESET"  ',
+            f'  LOADCASE "{lp.name}"  LOADPAT  "{lp.name}"  SF  1 ')
     for name, block in T.DESIGN_PREFERENCES.items():
         put(name, f.fixed(block))
     put("DIMENSION LINES", f"  DIMLINE DEFAULTSYSTEM {desc.grid_system}")

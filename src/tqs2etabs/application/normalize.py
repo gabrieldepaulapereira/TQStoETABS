@@ -94,6 +94,14 @@ def format_audit_report(result: NormalizationResult, verbose: bool = False) -> s
             add("  " + d.format())
     add("")
 
+    ov = eng.step("trim_beams_over_walls")
+    out.extend(_h("Beam/wall overlap"))
+    add(f"Beams trimmed over walls: {ov.stats['beams_trimmed']}   Length removed: {fmt(ov.stats['removed_length'])} m")
+    for d in ov.diagnostics:
+        if d.code == "OVL-I-BEAM-TRIMMED" or d.level != Level.INFO:
+            add("  " + d.format())
+    add("")
+
     out.extend(_h("Slab outlines"))
     sv = eng.step("snap_slab_vertices_to_column_axes")
     ab = eng.step("absorb_offset_slabs")

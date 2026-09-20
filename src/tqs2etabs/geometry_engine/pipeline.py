@@ -1,7 +1,8 @@
 """Pipeline do motor geometrico (ARCHITECTURE.md 10.1).
 
     derive_column_axes -> normalize_coordinates -> snap_beams_transverse
-    -> extend_beam_ends -> snap_beams_to_wall_ends -> snap_slab_vertices_to_column_axes
+    -> extend_beam_ends -> snap_beams_to_wall_ends -> trim_beams_over_walls
+    -> snap_slab_vertices_to_column_axes
     -> absorb_offset_slabs -> simplify_slab_outlines -> merge_nodes -> generate_grids
     -> validate_model
 
@@ -17,6 +18,7 @@ from ..domain.config import Config
 from ..domain.diagnostics import Level
 from ..domain.model import StructuralModel
 from .alignment import extend_beam_ends, snap_beams_to_wall_ends, snap_beams_transverse
+from .beam_wall_overlap import trim_beams_over_walls
 from .column_axes import derive_column_axes
 from .common import StepResult
 from .connectivity import merge_nodes
@@ -66,6 +68,8 @@ def run_engine(model: StructuralModel, config: Config) -> EngineResult:
     run("snap_beams_to_wall_ends", snap_beams_to_wall_ends)
     for k, v in steps[-1].stats.get("moved", {}).items():
         moved[k] = moved.get(k, 0.0) + v
+    run("trim_beams_over_walls", trim_beams_over_walls)
+    trimmed = {c.element_id for c in steps[-1].changes}
     run("snap_slab_vertices_to_column_axes", snap_slab_vertices_to_column_axes)
     for k, v in steps[-1].stats.get("moved", {}).items():
         moved[k] = moved.get(k, 0.0) + v
@@ -78,7 +82,7 @@ def run_engine(model: StructuralModel, config: Config) -> EngineResult:
     extended = moved
     run("generate_grids", generate_grids)
     snapshots["validate_model"] = current[0]
-    res = validate_model(current[0], original, config, extended)
+    res = validate_model(current[0], original, config, extended, skip_length_for=trimmed)
     steps.append(res)
     current[0] = res.model
     return EngineResult(original, current[0], tuple(steps), snapshots)

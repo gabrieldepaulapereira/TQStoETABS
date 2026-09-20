@@ -125,16 +125,20 @@ def test_column_priority_transverse_snap():
     res = run_engine(_model(LDF_SNAP), Config())
     m = res.model
     assert m.columns["P1"].centroid.x == pytest.approx(10.00)
-    assert m.node("N1").x == 10.00 and m.node("N2").x == 10.00
     snap = res.step("snap_beams_transverse")
     assert snap.stats["nodes_moved"] == 2
     assert all(c.rule.endswith("transverse-snap") and c.reference == "P1" for c in snap.changes)
-    # fora da tolerancia: nada se move e a validacao avisa
+    before_trim = res.snapshots["trim_beams_over_walls"]
+    assert before_trim.node("N1").x == 10.00 and before_trim.node("N2").x == 10.00
+    # a viga corre sobre as duas paredes (0..3 e 5..8): so o vao entre elas permanece (regra viga x parede)
+    assert list(m.beams) == ["V1"]
+    ys = sorted(m.node(n).y for n in m.beams["V1"].axis)
+    assert ys == [3.0, 5.0] and all(m.node(n).x == 10.00 for n in m.beams["V1"].axis)
+    # fora da tolerancia: nada se move (viga a 1 cm do eixo, dentro da faixa da parede: ainda e removida sobre ela)
     cfg = Config(tolerances=Tolerances(beam_column_snap=0.005, wall_end_snap=0.0))
     res2 = run_engine(_model(LDF_SNAP, cfg), cfg)
     assert res2.step("snap_beams_transverse").stats["nodes_moved"] == 0
-    assert res2.model.node("N1").x == pytest.approx(10.01)
-    assert "ALN-W-END-OFF-AXIS" in _codes(res2, Level.WARNING)
+    assert res2.snapshots["trim_beams_over_walls"].node("N1").x == pytest.approx(10.01)
 
 
 LDF_EXTEND = """\

@@ -32,10 +32,12 @@ def _seg_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
 
 
 def validate_model(model: StructuralModel, original: StructuralModel, config: Config,
-                   extended: dict[str, float] | None = None) -> StepResult:
+                   extended: dict[str, float] | None = None,
+                   skip_length_for: set[str] | None = None) -> StepResult:
     tol = config.tolerances
     diag = DiagnosticCollector()
     extended = extended or {}
+    skip_length_for = skip_length_for or set()
     V = Source.VALIDATION
 
     # ------------------------------------------------------------ integridade
@@ -78,7 +80,7 @@ def validate_model(model: StructuralModel, original: StructuralModel, config: Co
                 diag.error("GEO-E-DUP-NODE", f"Nos {a.id} e {b.id} coincidem apos normalizacao", V, refs=(a.id, b.id))
 
     for b in model.beams.values():
-        ob = original.beams.get(b.id)
+        ob = original.beams.get(b.id) if b.id not in skip_length_for else None
         for k, seg in enumerate(b.segments):
             p, q = model.node(seg.start_node_id).point, model.node(seg.end_node_id).point
             length = p.distance_to(q)

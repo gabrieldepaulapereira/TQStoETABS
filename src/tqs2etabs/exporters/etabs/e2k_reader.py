@@ -32,6 +32,9 @@ class E2kModel:
     line_assigns: dict[tuple[str, str], str] = field(default_factory=dict)   # (nome, story) -> secao
     area_assigns: dict[tuple[str, str], str] = field(default_factory=dict)
     point_assigns: set[tuple[str, str]] = field(default_factory=set)
+    area_loads: list[tuple[str, str, str, float]] = field(default_factory=list)     # (area, story, pattern, valor)
+    line_loads: list[tuple[str, str, str, float]] = field(default_factory=list)
+    load_patterns: dict[str, str] = field(default_factory=dict)
     sections_seen: list[str] = field(default_factory=list)
 
 
@@ -75,6 +78,12 @@ def read_e2k_text(text: str, decimal_separator: str = ",") -> E2kModel:
                 m.area_assigns[(t[1], t[2])] = sec
             if "PIER" in t:
                 m.area_piers.setdefault(t[1], t[t.index("PIER") + 1])
+        elif key == "AREALOAD":
+            m.area_loads.append((t[1], t[2], t[t.index("LC") + 1], _num(t[t.index("FVAL") + 1], decimal_separator)))
+        elif key == "LINELOAD":
+            m.line_loads.append((t[1], t[2], t[t.index("LC") + 1], _num(t[t.index("FVAL") + 1], decimal_separator)))
+        elif key == "LOADPATTERN":
+            m.load_patterns[t[1]] = t[3]
         elif key == "POINTASSIGN" and "RESTRAINT" in t:
             m.restraints[t[1]] = t[t.index("RESTRAINT") + 1]
         elif key == "POINTASSIGN":

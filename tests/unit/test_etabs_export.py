@@ -62,7 +62,7 @@ def test_formatter_decimal_separator():
 def test_material_and_angle_helpers():
     assert concrete_e_modulus_nbr6118(60) == pytest.approx(0.95 * 5600 * 60 ** 0.5)
     assert concrete_e_modulus_nbr6118(40) == pytest.approx(0.9 * 5600 * 40 ** 0.5)
-    assert etabs_column_angle(90) == 0.0 and etabs_column_angle(270) == 0.0 and etabs_column_angle(0) == 90.0
+    assert etabs_column_angle(90) == 90.0 and etabs_column_angle(270) == 90.0 and etabs_column_angle(0) == 0.0
 
 
 def test_description_mixed_frames_and_walls():
@@ -73,9 +73,9 @@ def test_description_mixed_frames_and_walls():
     walls = [a for a in desc.areas if a.kind == "PANEL"]
     assert all(a.pier == "P3" and a.section == "W30-C50" for a in walls)
     cols = [f for f in desc.frames if f.kind == "COLUMN"]
-    assert {f.section for f in cols} == {"C40X40-C50", "C30X60-C50"}
+    assert {f.section for f in cols} == {"C40X40-C50", "C60X30-C50"}
     p4 = next(f for f in cols if f.name == "P4")
-    assert p4.angle == 90.0            # TQS ANG 0 (L ao longo de X) -> ETABS 90
+    assert p4.angle == 0.0             # TQS ANG 0 -> ETABS 0 (D = B, B = L)
     stair = next(a for a in desc.areas if a.name == "L2")
     assert stair.section == "S10-C40-M"
     assert next(a for a in desc.areas if a.name == "L1").section == "S12-C40-SH"

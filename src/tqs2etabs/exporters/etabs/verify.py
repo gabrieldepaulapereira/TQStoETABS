@@ -36,7 +36,8 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
            "slabs": sum(1 for n, a in e2k.areas.items() if a[0] == "FLOOR" and n not in e2k.openings),
            "openings": len(e2k.openings), "grids": len(e2k.grids),
            "restraints": len(e2k.restraints), "frame_assignments": len(e2k.line_assigns),
-           "area_assignments": len(e2k.area_assigns)}
+           "area_assignments": len(e2k.area_assigns), "area_loads": len(e2k.area_loads),
+           "line_loads": len(e2k.line_loads)}
     for k, v in got.items():
         if exp and exp[k] != v:
             diag.error("XPT-E-COUNT", f"{k}: descricao {exp[k]} x E2K {v}", V)
