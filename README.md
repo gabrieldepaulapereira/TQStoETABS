@@ -80,7 +80,15 @@ Repositório: https://github.com/gabrieldepaulapereira/TQStoETABS
 **Deploy no Streamlit Community Cloud** (igual ao app de pilares): repositório no GitHub (pode ser
 privado) → share.streamlit.io → *New app* → arquivo principal `app/streamlit_app.py`, Python 3.12+.
 `requirements.txt` da raiz já lista `streamlit`, `pandas` e `plotly`; o pacote `tqs2etabs` é carregado
-de `src/` pelo próprio app. Na nuvem só a opção **.zip** funciona (o servidor não enxerga sua pasta local).
+de `src/` pelo próprio app.
+
+**Origem do edifício** (barra lateral):
+- *Escolher pasta no navegador* — seletor de pastas do próprio navegador (`app/components/folder_picker`,
+  componente sem build): o JS filtra `.LDF/.LST/.DAT/RESEST2.TXT`, compacta e envia só esses arquivos.
+  Funciona local e na nuvem.
+- *Pasta local (caminho)* + botão 📂 (diálogo nativo do Windows) — **só quando o app roda na sua máquina**.
+  Na nuvem o servidor é Linux e não enxerga o seu disco, por isso a opção some e o app avisa.
+- *Enviar .zip da pasta*.
 
 ## Testes
 

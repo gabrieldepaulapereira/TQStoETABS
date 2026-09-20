@@ -9,7 +9,11 @@ Streamlit Cloud: arquivo principal app/streamlit_app.py (usa requirements.txt da
 
 from __future__ import annotations
 
+import base64
 import io
+import os
+import platform
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -18,6 +22,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
@@ -108,6 +113,49 @@ def load_definition(folder: Path, config: Config) -> BuildingDefinition:
     return scan_building(_find_building_root(folder), config)
 
 
+# --------------------------------------------------------------------------- origem do edificio
+# Na nuvem (Streamlit Community Cloud) o servidor e Linux e NAO enxerga o disco do usuario: so valem o seletor
+# de pasta do navegador (componente abaixo) e o upload de .zip. O caminho local e o dialogo do Windows so
+# existem quando o app roda na propria maquina.
+RUNNING_LOCALLY = platform.system() == "Windows" and not os.environ.get("STREAMLIT_SERVER_HEADLESS_CLOUD")
+APP_DIR = Path(__file__).resolve().parent
+_folder_picker = components.declare_component("tqs_folder_picker", path=str(APP_DIR / "components" / "folder_picker"))
+
+
+def browser_folder_picker() -> Path | None:
+    """Seletor de pasta do navegador (webkitdirectory): o JS filtra .LDF/.LST/.DAT/RESEST2.TXT, compacta e
+    devolve o zip em base64; extraimos em uma pasta temporaria e devolvemos a raiz do edificio."""
+    val = _folder_picker(key="folder_picker", default=None)
+    if not val or not val.get("zip_b64"):
+        return Path(st.session_state["picked_dir"]) if st.session_state.get("picked_dir") else None
+    key = f"pick:{val.get('root')}:{val.get('count')}:{val.get('stamp')}"
+    if st.session_state.get("picked_key") != key:
+        tmp = Path(tempfile.mkdtemp(prefix="tqs2etabs_pick_"))
+        with zipfile.ZipFile(io.BytesIO(base64.b64decode(val["zip_b64"]))) as z:
+            z.extractall(tmp)
+        st.session_state["picked_key"] = key
+        st.session_state["picked_dir"] = str(tmp)
+        st.session_state["picked_info"] = f"{val.get('root')} — {val.get('count')} arquivos lidos de {val.get('total')}"
+    return Path(st.session_state["picked_dir"])
+
+
+def windows_folder_dialog(initial: str = "") -> str | None:
+    """Abre o dialogo nativo de pastas do Windows em um processo separado (tkinter nao gosta da thread do
+    Streamlit). Devolve o caminho escolhido ou None."""
+    code = "; ".join([
+        "import sys, tkinter as tk",
+        "from tkinter import filedialog",
+        "r = tk.Tk()", "r.withdraw()", "r.attributes('-topmost', True)",
+        "p = filedialog.askdirectory(title='Pasta do edificio TQS', initialdir=sys.argv[1] or None, mustexist=True)",
+        "r.destroy()", "sys.stdout.write(p or '')",
+    ])
+    try:
+        out = subprocess.run([sys.executable, "-c", code, initial], capture_output=True, text=True, timeout=600)
+        return out.stdout.strip().replace("/", "\\") or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def pisos_to_df(bd: BuildingDefinition) -> pd.DataFrame:
     rows = [{"Importar": True, "Piso": p.index, "Título": p.title, "Planta": p.plan_tag, "Cota (m)": p.elevation,
              "Pé-direito (m)": p.height, "fck pilares": p.materials.get("pilares", ""),
@@ -154,11 +202,23 @@ base_config = load_config()
 
 with st.sidebar:
     st.markdown('<div class="step">1 · Origem</div>', unsafe_allow_html=True)
-    mode = st.radio("Como carregar o edifício", ["Pasta local (caminho)", "Enviar .zip da pasta"], label_visibility="collapsed")
+    modes = ["Escolher pasta no navegador", "Enviar .zip da pasta"]
+    if RUNNING_LOCALLY:
+        modes.insert(1, "Pasta local (caminho)")
+    mode = st.radio("Como carregar o edifício", modes, label_visibility="collapsed")
     folder: Path | None = None
-    if mode.startswith("Pasta"):
-        path_text = st.text_input("Pasta do edifício TQS", value=st.session_state.get("path_text", ""),
-                                  placeholder=r"C:\Modelos TQS\MEU_EDIFICIO")
+    if mode.startswith("Escolher"):
+        folder = browser_folder_picker()
+        if folder is not None and st.session_state.get("picked_info"):
+            st.markdown(f'<span class="badge ok">{st.session_state["picked_info"]}</span>', unsafe_allow_html=True)
+    elif mode.startswith("Pasta"):
+        st.session_state.setdefault("path_input", st.session_state.get("path_text", ""))
+        c_txt, c_btn = st.columns([4, 1], vertical_alignment="bottom")
+        if c_btn.button("📂", help="Procurar pasta no Windows", use_container_width=True):
+            chosen = windows_folder_dialog(st.session_state.get("path_text", ""))
+            if chosen:
+                st.session_state["path_input"] = chosen
+        path_text = c_txt.text_input("Pasta do edifício TQS", key="path_input", placeholder=r"C:\Modelos TQS\MEU_EDIFICIO")
         if path_text:
             st.session_state["path_text"] = path_text
             folder = Path(path_text)
@@ -212,6 +272,9 @@ if load_clicked and folder is not None:
 
 bd: BuildingDefinition | None = st.session_state.get("definition")
 if bd is None:
+    if not RUNNING_LOCALLY:
+        st.warning("Este app está rodando na nuvem: o servidor **não enxerga as pastas do seu computador**. "
+                   "Use **Escolher pasta no navegador** (só os .LDF/.LST/.DAT/RESEST2.TXT são enviados) ou envie um .zip da pasta.")
     st.info("Informe a pasta do edifício TQS (ou envie um .zip dela) e clique em **Varrer edifício**. "
             "O app lê os `.LDF`/`.LST` de cada planta, o fck por piso (`ESPACIAL/RESEST2.TXT`) e o E do "
             "concreto (`CONCRETO.DAT`).")

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root { --acc:#4f8cff; --acc2:#22d3ee; --mut:#93a0bd; --txt:#e8edf7; --line:#243055; }
+  html, body { margin:0; background:transparent; font-family: Inter, system-ui, sans-serif; color: var(--txt); }
+  .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; box-sizing:border-box;
+         padding:9px 14px; border-radius:12px; border:1px solid var(--line); cursor:pointer; font-weight:600;
+         font-size:.9rem; color:#051024; background: linear-gradient(90deg, var(--acc), var(--acc2)); }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity:.6; cursor:wait; }
+  .hint { font-size:.75rem; color: var(--mut); margin-top:6px; line-height:1.35; }
+  .hint b { color: var(--txt); }
+  input { display:none; }
+</style>
+</head>
+<body>
+  <button class="btn" id="pick">📁 Escolher pasta do edifício…</button>
+  <input type="file" id="dir" webkitdirectory directory multiple>
+  <div class="hint" id="hint">Abre o seletor de pastas do navegador. Só os arquivos <b>.LDF · .LST · .DAT · RESEST2.TXT</b>
+    são lidos e enviados (compactados); o resto da pasta fica no seu computador.</div>
+
+<script>
+  // Protocolo do componente Streamlit (sem build): componentReady -> setFrameHeight -> setComponentValue.
+  function send(type, data) { window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type }, data), "*"); }
+  function setHeight() { send("streamlit:setFrameHeight", { height: document.body.scrollHeight + 4 }); }
+  function setValue(value) { send("streamlit:setComponentValue", { value, dataType: "json" }); }
+
+  const KEEP = /\.(ldf|lst|dat)$/i;
+  const KEEP_NAMES = /(^|\/)resest2\.txt$/i;
+
+  const pick = document.getElementById("pick"), input = document.getElementById("dir"), hint = document.getElementById("hint");
+  pick.addEventListener("click", () => input.click());
+
+  input.addEventListener("change", async () => {
+    const all = Array.from(input.files || []);
+    const files = all.filter(f => { const rel = f.webkitRelativePath || f.name; return KEEP.test(rel) || KEEP_NAMES.test(rel); });
+    if (!files.length) { hint.innerHTML = "Nenhum .LDF/.LST encontrado na pasta escolhida."; setHeight(); return; }
+    pick.disabled = true; pick.textContent = `Compactando ${files.length} arquivos…`; setHeight();
+    try {
+      const zip = new JSZip();
+      for (const f of files) zip.file(f.webkitRelativePath || f.name, await f.arrayBuffer());
+      const b64 = await zip.generateAsync({ type: "base64", compression: "DEFLATE", compressionOptions: { level: 6 } });
+      const root = (files[0].webkitRelativePath || "").split("/")[0] || "edificio";
+      hint.innerHTML = `<b>${root}</b>: ${files.length} arquivos de ${all.length} enviados (${(b64.length * 3 / 4 / 1024).toFixed(0)} kB).`;
+      setValue({ root, count: files.length, total: all.length, zip_b64: b64, stamp: Date.now() });
+    } catch (e) {
+      hint.textContent = "Falha ao compactar: " + e;
+    } finally {
+      pick.disabled = false; pick.textContent = "📁 Escolher pasta do edifício…"; setHeight();
+    }
+  });
+
+  window.addEventListener("message", (ev) => {          // render events do Streamlit (tema/args) -> so ajustar altura
+    if (ev.data && ev.data.type === "streamlit:render") setHeight();
+  });
+  send("streamlit:componentReady", { apiVersion: 1 });
+  setHeight();
+</script>
+</body>
+</html>
