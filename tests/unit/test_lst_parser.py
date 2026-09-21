@@ -42,3 +42,24 @@ def test_missing_sections_warn_only():
     codes = {x.code for x in d.diagnostics}
     assert "LST-W-NO-STORIES" in codes and "LST-W-NO-QUANTITIES" in codes
     assert d.stories == () and d.warnings == ()
+
+
+def test_story_row_with_terreo_flag(tmp_path):
+    """Linha do terreo tem material E marcador extra: '3  1°pav Ter  2.76  .60  1  CON  TERREO'."""
+    from tqs2etabs.importers.tqs.lst.parser import parse_lst
+    text = """Definição de Pisos
+------------------
+
+Piso    Título           Cota        P.D.      Seção
+                          m           m       
+ 3     1°pav Ter         2.76         .60      1    CON  TERREO
+ 4     Tipo              5.82        3.06      1    CON
+ 5     Tipo              8.88        3.06      1
+
+"""
+    p = tmp_path / "x.LST"
+    p.write_text(text, encoding="cp1252")
+    doc = parse_lst(p)
+    assert [(s.index, s.height_m, s.material, s.flags) for s in doc.stories] == [
+        (3, 0.6, "CON", ("TERREO",)), (4, 3.06, "CON", ()), (5, 3.06, None, ())]
+    assert doc.stories[0].title == "1°pav Ter"

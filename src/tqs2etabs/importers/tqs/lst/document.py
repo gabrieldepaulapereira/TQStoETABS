@@ -15,6 +15,7 @@ class LstStory:
     height_m: float
     section_code: str | None = None
     material: str | None = None
+    flags: tuple[str, ...] = ()        # marcadores extras da linha, ex.: TERREO (pavimento terreo)
 
 
 @dataclass(frozen=True, slots=True)

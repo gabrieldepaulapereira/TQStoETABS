@@ -138,6 +138,9 @@ def scan_building(folder: Path | str, config: Config | None = None,
                     diag.warning("BLD-W-PISO-DUP", f"Piso {row.index} definido em {piso_rows[row.index][3]} e {tag}",
                                  Source.PARSER)
                 piso_rows[row.index] = (row.title, row.elevation_m, row.height_m, tag)
+                if "TERREO" in row.flags:
+                    diag.info("BLD-I-TERREO", f"Piso {row.index} ({row.title}) marcado como TERREO no TQS "
+                              f"(cota {row.elevation_m} m, PD {row.height_m} m)", Source.PARSER, refs=(tag,))
         elif is_base:
             base_candidates.append((tag, len(ldf.columns)))
         else:

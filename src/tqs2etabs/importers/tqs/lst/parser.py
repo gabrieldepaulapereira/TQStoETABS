@@ -16,7 +16,8 @@ from .document import (LstBeamQuantity, LstColumnQuantity, LstDocument, LstSlabQ
 
 _NUM = r"(-?(?:\d+\.?\d*|\.\d+))"
 _WARN_RE = re.compile(r"^\*\*\*(\d+)\s+AVISO:\s*(.*?)\s*$")
-_STORY_RE = re.compile(rf"^\s*(\d+)\s+(.+?)\s+{_NUM}\s+{_NUM}\s+(\d+)(?:\s+(\S+))?\s*$")
+# "3  1ºpav Ter  2.76  .60  1  CON  TERREO": secao, material (opcional) e marcadores extras (TERREO etc.)
+_STORY_RE = re.compile(rf"^\s*(\d+)\s+(.+?)\s+{_NUM}\s+{_NUM}\s+(\d+)(?:\s+(\S+))?((?:\s+\S+)*)\s*$")
 _BEAM_Q_RE = re.compile(rf"^\s*(V\d+)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+{_NUM}\s*$")
 _COL_Q_RE = re.compile(rf"^\s*(P\d+)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s+(?:{_NUM}|\(Cortina\))\s*$")
 _SLAB_Q_RE = re.compile(rf"^\s*([A-Z][A-Z0-9]*)\s+{_NUM}\s+{_NUM}\s+{_NUM}\s*$")
@@ -67,7 +68,8 @@ def parse_lst_text(text: str, source_path: str | None = None) -> LstDocument:
             m = _STORY_RE.match(s)
             if m:
                 stories.append(LstStory(int(m.group(1)), m.group(2).strip(), float(m.group(3)),
-                                        float(m.group(4)), m.group(5), m.group(6)))
+                                        float(m.group(4)), m.group(5), m.group(6),
+                                        tuple((m.group(7) or "").split())))
     if not stories:
         diag.warning("LST-W-NO-STORIES", "Tabela 'Definicao de Pisos' nao encontrada no LST", Source.PARSER)
 
