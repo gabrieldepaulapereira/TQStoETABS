@@ -28,6 +28,25 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
+
+def _reload_package_if_stale() -> None:
+    """O Streamlit re-executa este script a cada rerun, mas os modulos de src/ ficam em sys.modules. Na nuvem,
+    um `git push` atualiza os arquivos sem reiniciar o processo e o app passa a rodar com o pacote antigo
+    (ex.: TypeError por argumento novo). Compara o carimbo dos .py e descarta o pacote quando mudou."""
+    pkg_dir = ROOT / "src" / "tqs2etabs"
+    stamp = max((f.stat().st_mtime_ns for f in pkg_dir.rglob("*.py")), default=0)
+    loaded = sys.modules.get("tqs2etabs")
+    if loaded is not None and getattr(loaded, "_loaded_stamp", None) != stamp:
+        for name in [m for m in sys.modules if m == "tqs2etabs" or m.startswith("tqs2etabs.")]:
+            del sys.modules[name]
+        loaded = None
+    if loaded is None:
+        import tqs2etabs  # noqa: F401
+        sys.modules["tqs2etabs"]._loaded_stamp = stamp
+
+
+_reload_package_if_stale()
+
 from tqs2etabs import __version__                                             # noqa: E402
 from tqs2etabs.application.building import (BuildingResult, convert_building_definition,  # noqa: E402
                                             format_building_report)
