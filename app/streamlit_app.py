@@ -116,8 +116,17 @@ def _find_building_root(folder: Path, max_depth: int = 4) -> Path:
     return folder
 
 
-def load_definition(folder: Path, config: Config) -> BuildingDefinition:
-    return scan_building(_find_building_root(folder), config)
+def load_definition(folder: Path, config: Config, progress=None) -> BuildingDefinition:
+    return scan_building(_find_building_root(folder), config, progress=progress)
+
+
+def progress_bar(label: str):
+    """st.progress + callback (fracao, texto) para scan_building/convert_building_definition."""
+    bar = st.progress(0, text=label)
+
+    def report(frac: float, text: str) -> None:
+        bar.progress(min(max(float(frac), 0.0), 1.0), text=f"{label} — {text}")
+    return bar, report
 
 
 # --------------------------------------------------------------------------- origem do edificio
@@ -130,9 +139,10 @@ _folder_picker = components.declare_component("tqs_folder_picker", path=str(APP_
 
 
 def browser_folder_picker() -> Path | None:
-    """Seletor de pasta do navegador (webkitdirectory): o JS filtra .LDF/.LST/.DAT/RESEST2.TXT, compacta e
-    devolve o zip em base64; extraimos em uma pasta temporaria e devolvemos a raiz do edificio."""
-    val = _folder_picker(key="folder_picker", default=None)
+    """Seletor de pasta do navegador (webkitdirectory): o JS escolhe so o que o scan_building le
+    (<planta>.LDF/.LST por pasta de planta, CONCRETO.DAT, ESPACIAL/RESEST2.TXT), compacta e devolve o zip em
+    base64; extraimos em uma pasta temporaria. O `ack` devolvido ao componente confirma o recebimento."""
+    val = _folder_picker(key="folder_picker", default=None, ack=st.session_state.get("picked_stamp"))
     if not val or not val.get("zip_b64"):
         return Path(st.session_state["picked_dir"]) if st.session_state.get("picked_dir") else None
     key = f"pick:{val.get('root')}:{val.get('count')}:{val.get('stamp')}"
@@ -142,7 +152,10 @@ def browser_folder_picker() -> Path | None:
             z.extractall(tmp)
         st.session_state["picked_key"] = key
         st.session_state["picked_dir"] = str(tmp)
-        st.session_state["picked_info"] = f"{val.get('root')} — {val.get('count')} arquivos lidos de {val.get('total')}"
+        st.session_state["picked_stamp"] = str(val.get("stamp"))
+        st.session_state["picked_files"] = list(val.get("files") or [])
+        st.session_state["picked_info"] = f"{val.get('root')} — {val.get('count')} arquivos recebidos de {val.get('total')}"
+        st.rerun()                      # re-renderiza o componente ja com o ack
     return Path(st.session_state["picked_dir"])
 
 
@@ -221,6 +234,8 @@ with st.sidebar:
         folder = browser_folder_picker()
         if folder is not None and st.session_state.get("picked_info"):
             st.markdown(f'<span class="badge ok">{st.session_state["picked_info"]}</span>', unsafe_allow_html=True)
+            with st.expander("Arquivos recebidos pelo servidor"):
+                st.code(chr(10).join(st.session_state.get("picked_files") or []) or "—", language=None)
     elif mode.startswith("Pasta"):
         st.session_state.setdefault("path_input", st.session_state.get("path_text", ""))
         c_txt, c_btn = st.columns([4, 1], vertical_alignment="bottom")
@@ -271,14 +286,16 @@ if load_clicked and folder is not None:
     if not folder.is_dir():
         st.error(f"Pasta não encontrada: {folder}")
     else:
-        with st.spinner("Lendo LDF/LST, materiais e catálogo de concreto…"):
-            try:
-                bd = load_definition(folder, build_config(base_config, ui))
-                st.session_state["definition"] = bd
-                st.session_state["pisos_df"] = pisos_to_df(bd)
-                st.session_state.pop("result", None)
-            except Exception as exc:  # noqa: BLE001
-                st.exception(exc)
+        bar, report = progress_bar("Leitura do edifício")
+        try:
+            bd = load_definition(folder, build_config(base_config, ui), progress=report)
+            st.session_state["definition"] = bd
+            st.session_state["pisos_df"] = pisos_to_df(bd)
+            st.session_state.pop("result", None)
+            bar.progress(1.0, text=f"Leitura concluída: {len(bd.plans)} plantas, {len(bd.pisos)} pisos")
+        except Exception as exc:  # noqa: BLE001
+            bar.progress(1.0, text="Leitura interrompida por erro — veja abaixo")
+            st.exception(exc)
 
 bd: BuildingDefinition | None = st.session_state.get("definition")
 if bd is None:
@@ -427,8 +444,10 @@ if gen:
             st.stop()
         edited_bd = replace(bd, pisos=pisos, base_elevation=pisos[0].elevation - pisos[0].height)
         cfg = build_config(base_config, ui)
-        with st.spinner("Normalizando plantas, alinhando eixos, gerando E2K e validando…"):
-            result = convert_building_definition(edited_bd, None, cfg)
+        bar, report = progress_bar("Geração do E2K")
+        result = convert_building_definition(edited_bd, None, cfg, progress=report)
+        bar.progress(1.0, text=f"E2K gerado: {len(result.description.stories) - 1} stories, "
+                               f"{len(result.description.frames)} barras, {len(result.description.areas)} áreas")
         st.session_state["result"] = result
     except Exception as exc:  # noqa: BLE001
         st.exception(exc)

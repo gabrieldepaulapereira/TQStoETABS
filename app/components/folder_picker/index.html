@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  :root { --acc:#4f8cff; --acc2:#22d3ee; --mut:#93a0bd; --txt:#e8edf7; --line:#243055; }
+  :root { --acc:#4f8cff; --acc2:#22d3ee; --ok:#22c55e; --warn:#f59e0b; --mut:#93a0bd; --txt:#e8edf7; --line:#243055; }
   html, body { margin:0; background:transparent; font-family: Inter, system-ui, sans-serif; color: var(--txt); }
   .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; box-sizing:border-box;
          padding:9px 14px; border-radius:12px; border:1px solid var(--line); cursor:pointer; font-weight:600;
@@ -13,14 +13,23 @@
   .btn:disabled { opacity:.6; cursor:wait; }
   .hint { font-size:.75rem; color: var(--mut); margin-top:6px; line-height:1.35; }
   .hint b { color: var(--txt); }
+  .bar { height:8px; border-radius:999px; background: rgba(255,255,255,.08); overflow:hidden; margin-top:8px; display:none; }
+  .bar > i { display:block; height:100%; width:0; background: linear-gradient(90deg, var(--acc), var(--acc2)); transition: width .15s; }
+  .bar.busy > i { width:40%; animation: slide 1.1s linear infinite; }
+  @keyframes slide { from { margin-left:-40%; } to { margin-left:100%; } }
+  .stage { font-size:.75rem; margin-top:6px; display:none; }
+  .stage.ok { color: var(--ok); } .stage.warn { color: var(--warn); }
+  ul { margin:4px 0 0 0; padding-left:16px; font-size:.7rem; color: var(--mut); max-height:120px; overflow:auto; }
   input { display:none; }
 </style>
 </head>
 <body>
   <button class="btn" id="pick">📁 Escolher pasta do edifício…</button>
   <input type="file" id="dir" webkitdirectory directory multiple>
-  <div class="hint" id="hint">Abre o seletor de pastas do navegador. Só os arquivos <b>.LDF · .LST · .DAT · RESEST2.TXT</b>
-    são lidos e enviados (compactados); o resto da pasta fica no seu computador.</div>
+  <div class="bar" id="bar"><i id="fill"></i></div>
+  <div class="stage" id="stage"></div>
+  <div class="hint" id="hint">Abre o seletor de pastas do navegador. Só os arquivos que o conversor usa são enviados:
+    <b>&lt;planta&gt;.LDF/.LST</b> de cada pasta de planta, <b>CONCRETO.DAT</b> e <b>ESPACIAL/RESEST2.TXT</b>. O resto fica no seu computador.</div>
 
 <script>
   // Protocolo do componente Streamlit (sem build): componentReady -> setFrameHeight -> setComponentValue.
@@ -28,33 +37,98 @@
   function setHeight() { send("streamlit:setFrameHeight", { height: document.body.scrollHeight + 4 }); }
   function setValue(value) { send("streamlit:setComponentValue", { value, dataType: "json" }); }
 
-  const KEEP = /\.(ldf|lst|dat)$/i;
-  const KEEP_NAMES = /(^|\/)resest2\.txt$/i;
+  // Mesmas regras do scan_building (importers/tqs/building.py)
+  const SKIP_DIRS = new Set(["ESPACIAL", "PILAR", "GERAIS", "FUNDAC", "INFRA", "PLANTAS", "PREMOLD", "TUNEL DE VENTO",
+                             "REFERENCIAS EXTERNAS", "VIGAS", "ESCADAS", "ESPECIAIS"]);
+  const ext = (p) => (p.match(/\.([^./]+)$/) || ["", ""])[1].toUpperCase();
+  const stem = (p) => p.split("/").pop().replace(/\.[^.]+$/, "");
+  const dir = (p) => p.split("/").slice(0, -1).join("/");
+
+  /** Raiz do edificio = pasta mais rasa que tem subpastas com .LDF direto (o usuario pode ter escolhido a pasta-mae). */
+  function findRoot(paths) {
+    const ldfDirs = new Set(paths.filter(p => ext(p) === "LDF").map(dir));
+    const parents = new Map();                       // pai -> profundidade
+    for (const d of ldfDirs) { const parent = dir(d); if (d) parents.set(parent, parent.split("/").length); }
+    if (!parents.size) return null;
+    return [...parents.entries()].sort((a, b) => a[1] - b[1])[0][0];
+  }
+
+  /** Seleciona so o que o conversor le. Devolve lista de {file, rel}. */
+  function selectFiles(all) {
+    const paths = all.map(f => f.webkitRelativePath || f.name);
+    const root = findRoot(paths);
+    if (root === null) return { root: null, picked: [] };
+    const prefix = root ? root + "/" : "";
+    const rel = (p) => p.startsWith(prefix) ? p.slice(prefix.length) : null;
+    const byDir = new Map();                         // subpasta direta -> [{file, rel}]
+    const picked = [];
+    all.forEach((f, i) => {
+      const r = rel(paths[i]); if (r === null) return;
+      const parts = r.split("/");
+      if (parts.length === 1 && r.toUpperCase() === "CONCRETO.DAT") { picked.push({ file: f, rel: r }); return; }
+      if (parts.length === 2 && parts[0].toUpperCase() === "ESPACIAL" && parts[1].toUpperCase() === "RESEST2.TXT") { picked.push({ file: f, rel: r }); return; }
+      if (parts.length !== 2 || SKIP_DIRS.has(parts[0].toUpperCase()) || parts[0].startsWith(".")) return;
+      const e = ext(r); if (e !== "LDF" && e !== "LST") return;
+      if (!byDir.has(parts[0])) byDir.set(parts[0], []);
+      byDir.get(parts[0]).push({ file: f, rel: r });
+    });
+    for (const [sub, items] of byDir) {              // espelha _find_plan_ldf: LDF com o nome da pasta + seu LST
+      const ldfs = items.filter(x => ext(x.rel) === "LDF"), lsts = items.filter(x => ext(x.rel) === "LST");
+      if (!ldfs.length) continue;
+      const named = ldfs.filter(x => stem(x.rel).toLowerCase() === sub.toLowerCase());
+      const chosenLdfs = named.length ? named : ldfs;
+      const chosenStems = new Set(chosenLdfs.map(x => stem(x.rel).toLowerCase()));
+      let chosenLsts = lsts.filter(x => chosenStems.has(stem(x.rel).toLowerCase()));
+      if (!chosenLsts.length) chosenLsts = lsts.filter(x => stem(x.rel).toUpperCase() !== "MENAVI");
+      picked.push(...chosenLdfs, ...chosenLsts);
+    }
+    return { root: root || "(raiz)", picked };
+  }
 
   const pick = document.getElementById("pick"), input = document.getElementById("dir"), hint = document.getElementById("hint");
+  const bar = document.getElementById("bar"), fill = document.getElementById("fill"), stage = document.getElementById("stage");
+  let pendingKey = null;
+
+  function progress(pct, text, cls) {
+    bar.style.display = "block"; bar.classList.toggle("busy", pct === null);
+    if (pct !== null) fill.style.width = Math.round(pct * 100) + "%";
+    stage.style.display = "block"; stage.className = "stage " + (cls || ""); stage.textContent = text; setHeight();
+  }
+
   pick.addEventListener("click", () => input.click());
 
   input.addEventListener("change", async () => {
     const all = Array.from(input.files || []);
-    const files = all.filter(f => { const rel = f.webkitRelativePath || f.name; return KEEP.test(rel) || KEEP_NAMES.test(rel); });
-    if (!files.length) { hint.innerHTML = "Nenhum .LDF/.LST encontrado na pasta escolhida."; setHeight(); return; }
-    pick.disabled = true; pick.textContent = `Compactando ${files.length} arquivos…`; setHeight();
+    const { root, picked } = selectFiles(all);
+    if (!picked.length) { progress(0, "Nenhuma pasta de planta com .LDF encontrada na pasta escolhida.", "warn"); return; }
+    pick.disabled = true;
     try {
       const zip = new JSZip();
-      for (const f of files) zip.file(f.webkitRelativePath || f.name, await f.arrayBuffer());
-      const b64 = await zip.generateAsync({ type: "base64", compression: "DEFLATE", compressionOptions: { level: 6 } });
-      const root = (files[0].webkitRelativePath || "").split("/")[0] || "edificio";
-      hint.innerHTML = `<b>${root}</b>: ${files.length} arquivos de ${all.length} enviados (${(b64.length * 3 / 4 / 1024).toFixed(0)} kB).`;
-      setValue({ root, count: files.length, total: all.length, zip_b64: b64, stamp: Date.now() });
+      for (let i = 0; i < picked.length; i++) {
+        progress(i / picked.length * 0.5, `Lendo arquivo ${i + 1}/${picked.length}: ${picked[i].rel}`);
+        zip.file(picked[i].rel, await picked[i].file.arrayBuffer());
+      }
+      const b64 = await zip.generateAsync({ type: "base64", compression: "DEFLATE", compressionOptions: { level: 6 } },
+                                          (m) => progress(0.5 + m.percent / 100 * 0.4, `Compactando… ${m.percent.toFixed(0)}%`));
+      const kb = (b64.length * 3 / 4 / 1024).toFixed(0);
+      const stamp = Date.now(); pendingKey = String(stamp);
+      progress(null, `Enviando ${picked.length} arquivos (${kb} kB) ao servidor…`);
+      const list = picked.map(x => x.rel).sort();
+      hint.innerHTML = `<b>${root}</b>: ${picked.length} de ${all.length} arquivos selecionados.` +
+                       `<ul>${list.map(r => `<li>${r}</li>`).join("")}</ul>`;
+      setValue({ root, count: picked.length, total: all.length, files: list, zip_b64: b64, stamp });
     } catch (e) {
-      hint.textContent = "Falha ao compactar: " + e;
+      progress(0, "Falha ao preparar os arquivos: " + e, "warn");
     } finally {
-      pick.disabled = false; pick.textContent = "📁 Escolher pasta do edifício…"; setHeight();
+      pick.disabled = false; setHeight();
     }
   });
 
-  window.addEventListener("message", (ev) => {          // render events do Streamlit (tema/args) -> so ajustar altura
-    if (ev.data && ev.data.type === "streamlit:render") setHeight();
+  window.addEventListener("message", (ev) => {          // render do Streamlit: args.ack = stamp recebido pelo Python
+    if (!ev.data || ev.data.type !== "streamlit:render") return;
+    const ack = ev.data.args && ev.data.args.ack;
+    if (ack && pendingKey && String(ack) === pendingKey) { progress(1, "Recebido pelo servidor ✓", "ok"); pendingKey = null; }
+    setHeight();
   });
   send("streamlit:componentReady", { apiVersion: 1 });
   setHeight();

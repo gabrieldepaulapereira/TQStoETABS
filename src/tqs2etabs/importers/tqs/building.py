@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from pathlib import Path
+from typing import Callable
 
 from ...domain.building import BuildingDefinition, ConcreteClass, PisoDefinition, PlanDefinition
 from ...domain.config import Config
@@ -97,8 +98,14 @@ def read_resest_materials(path: Path) -> dict[int, dict[str, str]]:
     return out
 
 
-def scan_building(folder: Path | str, config: Config | None = None) -> BuildingDefinition:
+ProgressFn = Callable[[float, str], None]
+
+
+def scan_building(folder: Path | str, config: Config | None = None,
+                  progress: ProgressFn | None = None) -> BuildingDefinition:
+    """Varre a pasta do edificio. `progress(fracao, texto)` e chamado a cada etapa (UI)."""
     config = config or Config()
+    report = progress or (lambda f, t: None)
     root = Path(folder)
     diag = DiagnosticCollector()
     sources: dict[str, str] = {}
@@ -106,12 +113,13 @@ def scan_building(folder: Path | str, config: Config | None = None) -> BuildingD
     piso_rows: dict[int, tuple[str, float, float, str]] = {}   # index -> (titulo, cota, pd, plan_tag)
     base_candidates: list[tuple[str, int]] = []
 
-    for sub in sorted(p for p in root.iterdir() if p.is_dir()):
-        if sub.name.upper() in _SKIP_DIRS or sub.name.startswith("."):
-            continue
+    subdirs = [p for p in sorted(root.iterdir()) if p.is_dir()
+               and p.name.upper() not in _SKIP_DIRS and not p.name.startswith(".")]
+    for i, sub in enumerate(subdirs):
         ldf_path, lst_path = _find_plan_ldf(sub, diag)
         if ldf_path is None:
             continue
+        report(0.05 + 0.75 * i / max(len(subdirs), 1), f"Lendo planta {sub.name}: {ldf_path.name}")
         ldf = parse_ldf(ldf_path)
         if not ldf.nodes and not ldf.columns:
             continue
@@ -140,6 +148,7 @@ def scan_building(folder: Path | str, config: Config | None = None) -> BuildingD
         diag.error("BLD-E-NO-PISOS", "Nenhuma tabela 'Definicao de Pisos' encontrada nos LSTs", Source.PARSER)
 
     # materiais por piso
+    report(0.82, "Lendo ESPACIAL/RESEST2.TXT (fck por piso)")
     materials: dict[int, dict[str, str]] = {}
     resest = root / "ESPACIAL" / "RESEST2.TXT"
     if resest.exists():
@@ -151,6 +160,7 @@ def scan_building(folder: Path | str, config: Config | None = None) -> BuildingD
     else:
         diag.warning("BLD-W-NO-RESEST", "ESPACIAL/RESEST2.TXT ausente: fck por piso desconhecido; usando "
                      f"{config.etabs.default_material}", Source.PARSER)
+    report(0.9, "Lendo CONCRETO.DAT (modulo de elasticidade)")
     catalog: dict[str, ConcreteClass] = {}
     conc = root / "CONCRETO.DAT"
     if conc.exists():
@@ -189,6 +199,7 @@ def scan_building(folder: Path | str, config: Config | None = None) -> BuildingD
                 break
         except OSError:
             pass
+    report(1.0, f"Edificio '{name}': {len(plans)} plantas, {len(pisos)} pisos")
     diag.info("BLD-I-SUMMARY", f"Edificio '{name}': {len(plans)} plantas, {len(pisos)} pisos "
               f"({pisos[0].elevation if pisos else 0:.2f} a {pisos[-1].elevation if pisos else 0:.2f} m)", Source.PARSER)
     return BuildingDefinition(name, str(root), plans, tuple(pisos), base_elev, base_tag, catalog,

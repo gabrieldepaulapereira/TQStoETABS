@@ -84,8 +84,12 @@ de `src/` pelo próprio app.
 
 **Origem do edifício** (barra lateral):
 - *Escolher pasta no navegador* — seletor de pastas do próprio navegador (`app/components/folder_picker`,
-  componente sem build): o JS filtra `.LDF/.LST/.DAT/RESEST2.TXT`, compacta e envia só esses arquivos.
-  Funciona local e na nuvem.
+  componente sem build): o JS reproduz a seleção do `scan_building` — `<planta>.LDF/.LST` de cada pasta de
+  planta (LDF com o nome da pasta, senão todos; LST correspondente, senão os não-MENAVI), `CONCRETO.DAT` e
+  `ESPACIAL/RESEST2.TXT` — compacta e envia só isso, com barra de progresso (leitura → compactação → envio →
+  confirmação do servidor) e a lista dos arquivos recebidos. Funciona local e na nuvem.
+- As etapas *Varrer edifício* e *Gerar E2K* têm barra de progresso por planta/etapa (callback `progress`
+  em `scan_building` e `convert_building_definition`).
 - *Pasta local (caminho)* + botão 📂 (diálogo nativo do Windows) — **só quando o app roda na sua máquina**.
   Na nuvem o servidor é Linux e não enxerga o seu disco, por isso a opção some e o app avisa.
 - *Enviar .zip da pasta*.

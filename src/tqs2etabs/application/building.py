@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Callable
 
 from ..domain.building import BuildingDefinition, PisoDefinition
 from ..domain.config import Config, load_config
@@ -57,9 +58,12 @@ def convert_building(folder: Path | str, output: Path | str | None, config: Conf
 
 
 def convert_building_definition(bd: BuildingDefinition, output: Path | str | None,
-                                config: Config | None = None) -> BuildingResult:
-    """Converte uma definicao de edificio (possivelmente editada pelo usuario) em .e2k."""
+                                config: Config | None = None,
+                                progress: Callable[[float, str], None] | None = None) -> BuildingResult:
+    """Converte uma definicao de edificio (possivelmente editada pelo usuario) em .e2k.
+    `progress(fracao, texto)` e chamado a cada planta/etapa (UI)."""
     config = config or load_config()
+    report = progress or (lambda f, t: None)
     plans: dict[str, PlanResult] = {}
     reference: dict[str, Column] = {}      # pilar -> coluna (com eixos) da planta mais baixa em que existe
 
@@ -71,8 +75,9 @@ def convert_building_definition(bd: BuildingDefinition, output: Path | str | Non
         if piso.plan_tag not in order:
             order.append(piso.plan_tag)
 
-    for tag in order:
+    for i, tag in enumerate(order):
         plan = bd.plans[tag]
+        report(0.05 + 0.6 * i / max(len(order), 1), f"Planta {tag}: lendo, normalizando e alinhando eixos")
         analysis = analyze(plan.ldf_path, plan.lst_path, config)
         model = analysis.model
         step = align_columns_to_reference(model, reference, config)
@@ -88,6 +93,7 @@ def convert_building_definition(bd: BuildingDefinition, output: Path | str | Non
             reference.setdefault(cid, col)
 
     # ------------------------------------------------------------ mapeamento
+    report(0.7, "Mapeando stories, materiais, secoes e elementos para o ETABS")
     mapper = EtabsMapper(config, bd.name, bd.concrete_catalog)
     mapper.set_base(bd.base_elevation)
     master_by_plan: dict[str, str] = {}
@@ -107,6 +113,7 @@ def convert_building_definition(bd: BuildingDefinition, output: Path | str | Non
         mapper.add_plan(pr.normalization.model, names, plan_key=tag, materials_by_story=mats,
                         name_prefix=f"{tag}.", restrain_base=(tag == lowest_plan))
     desc, map_diags = mapper.build()
+    report(0.85, "Escrevendo E2K e validando a exportacao")
     label = Path(output).name if output else f"{ascii_name(bd.name)}.e2k"
     text = write_e2k_text(desc, config.etabs, label)
     e2k = read_e2k_text(text, config.etabs.decimal_separator)
