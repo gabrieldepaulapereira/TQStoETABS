@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
+from dataclasses import replace
 
 from ...domain.building import ConcreteClass
 from ...domain.config import Config
@@ -386,13 +387,19 @@ class EtabsMapper:
         points = tuple(EPoint(p.name, p.x, p.y, p.source_node,
                               tuple(sorted(self.point_stories[p.name], key=lambda n: -self._story_elev(n))))
                        for p in self.points.values())
+        points, dx, dy = self._shift_to_origin(points)
+        grids = self._renamed_grids(points, dx, dy)
+        template = self._template(tuple(s.name for s in stories if not s.is_base))
+        if template is not None:
+            self.notes.extend(template.notes)
         desc = EtabsDescription(
             title=self.title, units=("KN", "M", "C"), stories=stories, grid_system=self.opt.grid_system,
-            grids=self._renamed_grids(), materials=tuple(self.materials.values()),
+            grids=grids, materials=tuple(self.materials.values()),
             frame_sections=tuple(self.frame_sections.values()), shell_sections=tuple(self.shell_sections.values()),
             points=points, frames=tuple(self.frames), areas=tuple(self.areas), restraints=tuple(self.restraints),
             piers=tuple(self.piers), notes=tuple(self.notes), node_to_point=dict(self.node_to_point),
-            load_patterns=self._load_patterns(), area_loads=tuple(self.area_loads), line_loads=tuple(self.line_loads))
+            load_patterns=self._load_patterns(), area_loads=tuple(self.area_loads), line_loads=tuple(self.line_loads),
+            template=template, origin_shift=(dx, dy))
         self.diag.info("EXP-I-SUMMARY", "ETABS description: " + ", ".join(f"{k}={v}" for k, v in desc.counts().items()),
                        Source.EXPORTER)
         return desc, self.diag.as_tuple()
@@ -403,23 +410,70 @@ class EtabsMapper:
                 return s.elevation
         return -1e9
 
-    def _renamed_grids(self) -> tuple[EGrid, ...]:
-        """Grids de varias plantas unidos por coordenada e renomeados em ordem crescente."""
+    def _shift_to_origin(self, points: tuple[EPoint, ...]) -> tuple[tuple[EPoint, ...], float, float]:
+        """Translada o modelo para que (0,0) seja o canto inferior esquerdo do perimetro (todos os pontos:
+        pilares, vigas e lajes). Devolve os pontos transladados e o deslocamento aplicado."""
+        if not self.opt.origin_at_min_corner or not points:
+            return points, 0.0, 0.0
+        dec = self.config.tolerances.rounding_decimals
+        dx = -round(min(p.x for p in points), dec)
+        dy = -round(min(p.y for p in points), dec)
+        if abs(dx) < 10 ** -dec and abs(dy) < 10 ** -dec:
+            return points, 0.0, 0.0
+        moved = tuple(replace(p, x=round(p.x + dx, dec), y=round(p.y + dy, dec)) for p in points)
+        self.notes.append(f"Origem movida para o canto inferior esquerdo: X{dx:+.2f} m, Y{dy:+.2f} m.")
+        self.diag.info("EXP-I-ORIGIN", f"Modelo transladado para (0,0) no canto inferior esquerdo "
+                       f"(dx={dx:.3f} m, dy={dy:.3f} m)", Source.EXPORTER)
+        return moved, dx, dy
+
+    def _renamed_grids(self, points: tuple[EPoint, ...] = (), dx: float = 0.0, dy: float = 0.0) -> tuple[EGrid, ...]:
+        """Grids de varias plantas unidos por coordenada e renomeados em ordem crescente.
+        Com `bounding_grids`, acrescenta um grid em cada extremo do perimetro (pontos de qualquer
+        elemento: pilar, viga ou laje) para que nada fique fora da malha de eixos."""
         from ...geometry_engine.grids import grid_label
         naming = self.config.grids
+        dec = self.config.tolerances.rounding_decimals
+        shift = {"X": dx, "Y": dy}
         out = []
         for direction in ("X", "Y"):
-            coords = sorted({k[1] for k in self.grids if k[0] == direction})
+            coords = sorted(round(k[1] + shift[direction], dec) for k in self.grids if k[0] == direction)
             merged: list[float] = []
             for c in coords:
                 if merged and c - merged[-1] <= self.config.tolerances.coordinate_cluster:
                     continue
                 merged.append(c)
+            if self.opt.bounding_grids and points:
+                vals = [p.x for p in points] if direction == "X" else [p.y for p in points]
+                for limit in (round(min(vals), dec), round(max(vals), dec)):
+                    if not merged or min(abs(limit - c) for c in merged) > naming.boundary_tolerance:
+                        merged.append(limit)
+                        self.diag.info("EXP-I-GRID-BOUND", f"Grid de extremo criado em {direction}={limit:.2f} m "
+                                       "(perimetro da estrutura)", Source.EXPORTER)
+                merged = sorted(merged)
             style = naming.x_style if direction == "X" else naming.y_style
             prefix = naming.x_prefix if direction == "X" else naming.y_prefix
             for i, c in enumerate(merged):
                 out.append(EGrid(grid_label(style, prefix, i, naming.start_index), direction, c))
         return tuple(out)
+
+    def _template(self, story_names: tuple[str, ...]):
+        """Le e resolve o .e2k de referencia, quando configurado."""
+        if not self.opt.template_path:
+            return None
+        from .template import load_template, prepare_template
+        try:
+            tpl = load_template(self.opt.template_path)
+        except OSError as exc:
+            self.diag.error("TPL-E-READ", f"Template nao pode ser lido ({self.opt.template_path}): {exc}",
+                            Source.EXPORTER)
+            return None
+        plan, diags = prepare_template(
+            tpl, story_names, tuple(p.name for p in self._load_patterns()),
+            definitions=self.opt.template_definitions, analysis=self.opt.template_analysis,
+            combos=self.opt.template_combos,
+            prefer_ours_materials=tuple(k for k, v in self.opt.e_overrides.items() if v))
+        self.diag.items.extend(diags)
+        return plan
 
 
 def build_description(model: StructuralModel, config: Config) -> tuple[EtabsDescription, tuple]:

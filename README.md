@@ -57,6 +57,30 @@ Varre a pasta do edifício (uma subpasta por planta), lê os `.LDF`/`.LST` de ca
 eixos dos pilares alinhados entre pavimentos) e gera um único `.e2k` com todos os stories (`SIMILARTO`
 para pisos repetidos, material por story, piers com o nome TQS). Detalhes em [docs/BUILDING_FILES.md](docs/BUILDING_FILES.md).
 
+## Template .e2k do escritório
+
+```bash
+tqs2etabs building "C:/Modelos TQS/MEU_EDIFICIO" -o MEU_EDIFICIO.e2k --template MODELO-REFERENCIA.e2k
+```
+
+Reaproveita de um modelo ETABS existente (o mesmo `--template` vale para `export`):
+
+- **definições**: materiais (com o E do projeto), seções de barra/laje/parede **com os modificadores de
+  rigidez**, diafragmas, funções, conjuntos de carga de shell — o template vence quando o nome coincide
+  (exceção: material cujo E o usuário escolheu na aba Materiais);
+- **configuração**: opções de análise (P-Delta, malha), mass source e preferências de dimensionamento;
+- **casos e combinações**: `LOAD PATTERNS` (merge), `LOAD CASES` e `LOAD COMBINATIONS`.
+
+A geometria (pontos, barras, áreas, stories, grids, piers, cargas) vem sempre do TQS. Como o template foi
+gravado para outro edifício, o que referencia objetos inexistentes é corrigido ou descartado com aviso:
+casos de **construção sequencial** têm os estágios refeitos sobre os pavimentos deste modelo (um por
+pavimento, de baixo para cima); caso que usa load pattern inexistente sai, e combinação que perde suas
+referências sai junto (resolvido por ponto fixo).
+
+Outras duas regras de posicionamento: o modelo é transladado para que **(0,0) seja o canto inferior
+esquerdo** do perímetro, e o **primeiro/último eixo de cada direção cobre todo o perímetro** (inclusive
+ponta de viga e bordo de laje) — ambas desligáveis em `[etabs]` (`origin_at_min_corner`, `bounding_grids`).
+
 ## Interface web (Streamlit)
 
 ```bash

@@ -82,8 +82,9 @@ def test_building_conversion(building):
     assert mats["C60"].e_kn_m2 == 42_000_000 and mats["C60"].source == "CONCRETO.DAT"
     # pilares em L (P17/P18) sem LAMINAS decompostos e exportados como paredes
     assert any(a.name.startswith("TIPO1.P17") for a in desc.areas)
-    # pontos compartilhados entre pavimentos: o ponto do canto (0,15; 0,15) existe em todos os pisos
-    corner = next(p for p in desc.points if abs(p.x - 0.15) < 1e-9 and abs(p.y - 0.15) < 1e-9)
+    # origem no canto inferior esquerdo: o canto (0,15; 0,15) do TQS vira (0, 0) e existe em todos os pisos
+    assert desc.origin_shift == (-0.15, -0.15)
+    corner = next(p for p in desc.points if abs(p.x) < 1e-9 and abs(p.y) < 1e-9)
     assert set(corner.stories) >= {"1-Tipo", "5-Tipo", "6-Tipo 2"}
     # grids com letras/numeros, unidos entre plantas
     assert [g.label for g in desc.grids if g.direction == "X"] == ["A", "B", "C", "D"]

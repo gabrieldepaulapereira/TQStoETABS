@@ -64,6 +64,10 @@ def convert_building_definition(bd: BuildingDefinition, output: Path | str | Non
     `progress(fracao, texto)` e chamado a cada planta/etapa (UI)."""
     config = config or load_config()
     report = progress or (lambda f, t: None)
+    if not bd.pisos:
+        raise ValueError(f"Nenhum pavimento encontrado em {bd.folder}: cada pasta de planta precisa do par "
+                         "<planta>.LDF + <planta>.LST com a tabela 'Definicao de Pisos'. Se a pasta informada "
+                         "for a pasta-mae, use a pasta do edificio (a que contem as subpastas das plantas).")
     plans: dict[str, PlanResult] = {}
     reference: dict[str, Column] = {}      # pilar -> coluna (com eixos) da planta mais baixa em que existe
 

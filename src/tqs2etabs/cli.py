@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from .application.analyze import analyze, format_summary, model_to_json
@@ -19,6 +20,16 @@ def _guess_lst(ldf: Path) -> Path | None:
         if cand.exists():
             return cand
     return None
+
+
+def _with_template(config, template: Path | None):
+    """--template <arquivo.e2k> entra na configuracao do exportador."""
+    if not template:
+        return config
+    if not template.exists():
+        print(f"Template nao encontrado: {template}", file=sys.stderr)
+        raise SystemExit(2)
+    return replace(config, etabs=replace(config.etabs, template_path=str(template)))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("--config", type=Path, default=None)
     ex.add_argument("-o", "--out", type=Path, required=True, help="arquivo .e2k de saida")
     ex.add_argument("--report", type=Path, default=None, help="grava o relatorio completo em arquivo texto")
+    ex.add_argument("--template", type=Path, default=None, help=".e2k de referencia: materiais, secoes, casos e "
+                    "combinacoes do escritorio")
 
     bl = sub.add_parser("building", help="pasta do edificio TQS -> modelo ETABS completo (.e2k)")
     bl.add_argument("folder", type=Path)
@@ -53,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     bl.add_argument("-o", "--out", type=Path, required=True, help="arquivo .e2k de saida")
     bl.add_argument("--report", type=Path, default=None)
     bl.add_argument("-v", "--verbose", action="store_true", help="inclui a auditoria de cada planta")
+    bl.add_argument("--template", type=Path, default=None, help=".e2k de referencia: materiais, secoes, casos e "
+                    "combinacoes do escritorio")
 
     args = ap.parse_args(argv)
     if args.cmd == "analyze":
@@ -86,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Arquivo nao encontrado: {args.ldf}", file=sys.stderr)
             return 2
         lst = args.lst if args.lst else _guess_lst(args.ldf)
-        result = export_e2k(args.ldf, lst, args.out, load_config(args.config))
+        result = export_e2k(args.ldf, lst, args.out, _with_template(load_config(args.config), args.template))
         text = format_export_report(result)
         print(text)
         if args.report:
@@ -96,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.folder.is_dir():
             print(f"Pasta nao encontrada: {args.folder}", file=sys.stderr)
             return 2
-        result = convert_building(args.folder, args.out, load_config(args.config))
+        result = convert_building(args.folder, args.out, _with_template(load_config(args.config), args.template))
         text = format_building_report(result, verbose=args.verbose)
         print(text)
         if args.report:

@@ -8,6 +8,10 @@ pelos pontos e atribuidos a um ou mais pavimentos (`assignments`), como no E2K.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .template import TemplatePlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +171,8 @@ class EtabsDescription:
     load_patterns: tuple[ELoadPattern, ...] = ()
     area_loads: tuple[EAreaLoad, ...] = ()
     line_loads: tuple[ELineLoad, ...] = ()
+    template: "TemplatePlan | None" = None       # secoes vindas de um .e2k de referencia (exporters.etabs.template)
+    origin_shift: tuple[float, float] = (0.0, 0.0)   # translacao aplicada ao modelo (origem no canto inf. esquerdo)
 
     @property
     def story(self) -> EStory:

@@ -19,6 +19,7 @@ from pathlib import Path
 from ...domain.config import EtabsOptions
 from . import e2k_template as T
 from .description import EtabsDescription
+from .template import merge_lines
 
 
 class E2kFormatter:
@@ -163,10 +164,15 @@ def write_e2k_text(desc: EtabsDescription, opt: EtabsOptions, file_label: str = 
         f"at {_dt.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}",
         "  ENDCOMMENTS  ", "", "  END")
 
+    tpl = desc.template
+    if tpl is not None and tpl.separator != opt.decimal_separator:
+        # o template foi gravado com outro separador decimal: converte os numeros das linhas cruas
+        tpl = _reseparated(tpl, opt.decimal_separator)
+
     L: list[str] = [f"$ File {file_label} saved {_dt.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", " "]
     for name in T.SECTION_ORDER:
         L.append(f"$ {name}")
-        L.extend(body[name])
+        L.extend(merge_lines(tpl, name, body[name]))
         L.append("")
     L.append("$ END OF MODEL FILE")
     L.append("")
@@ -177,3 +183,13 @@ def write_e2k_file(desc: EtabsDescription, opt: EtabsOptions, path: Path | str) 
     path = Path(path)
     path.write_text(write_e2k_text(desc, opt, path.name), encoding="ascii", errors="replace", newline="\r\n")
     return path
+
+
+def _reseparated(plan, separator: str):
+    """Template gravado com outro separador decimal: troca apenas em numeros (1,5 <-> 1.5)."""
+    import re
+    from dataclasses import replace as _replace
+    src, dst = (",", ".") if separator == "." else (".", ",")
+    pat = re.compile(rf"(?<=\d){re.escape(src)}(?=\d)")
+    sections = {name: [pat.sub(dst, line) for line in lines] for name, lines in plan.sections.items()}
+    return _replace(plan, sections=sections, separator=separator)

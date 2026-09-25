@@ -26,8 +26,9 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
             diag.error("XPT-E-NODE-MISSING", f"No {n.id} sem ponto no E2K", V, refs=(n.id,))
             continue
         x, y = e2k.points[pname]
-        if abs(x - n.x) > coord_tol or abs(y - n.y) > coord_tol:
-            diag.error("XPT-E-COORD", f"No {n.id}: ({n.x}, {n.y}) x E2K ({x}, {y})", V, refs=(n.id,))
+        dx, dy = desc.origin_shift                  # modelo transladado para a origem no canto inf. esquerdo
+        if abs(x - (n.x + dx)) > coord_tol or abs(y - (n.y + dy)) > coord_tol:
+            diag.error("XPT-E-COORD", f"No {n.id}: ({n.x + dx}, {n.y + dy}) x E2K ({x}, {y})", V, refs=(n.id,))
 
     # contagens
     exp = desc.counts()

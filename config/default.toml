@@ -36,6 +36,7 @@ y_prefix = "Y"
 start_index = 1
 secondary_grids_from_beams = false  # grids tambem nos eixos de vigas ortogonais
 grids_at_frame_columns = true
+boundary_tolerance = 0.25           # grid de extremo so e criado se o ultimo eixo estiver a mais que isto (m)
 
 [etabs]
 version = "23.2.0"
@@ -56,6 +57,12 @@ export_loads = true            # cargas de laje (ADI) e de viga (DIS) dos casos 
 include_columns = true         # selecao do que importar (pilares/paredes, vigas, lajes)
 include_beams = true
 include_slabs = true
+template_path = ""             # .e2k de referencia do escritorio (materiais, secoes, casos, combinacoes)
+template_definitions = true    # materiais, secoes, diafragmas, funcoes e preferencias de dimensionamento
+template_analysis = true       # load patterns, load cases, mass source e opcoes de analise (P-Delta, malha)
+template_combos = true         # combinacoes de carga
+origin_at_min_corner = true    # (0,0) no canto inferior esquerdo do perimetro
+bounding_grids = true          # cria grid nos extremos do perimetro (inclui pontas de viga e bordo de laje)
 tf_to_kn = 9.80665
 pattern_dead_extra = "SDL"     # padrao de carga permanente adicional (Super Dead)
 pattern_live = "LIVE"          # padrao de carga acidental (Live)

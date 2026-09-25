@@ -234,7 +234,10 @@ def build_config(base: Config, ui: dict) -> Config:
         grids=replace(base.grids, x_style=ui["gx"], y_style=ui["gy"]),
         etabs=replace(base.etabs, default_material=ui["default_material"], decimal_separator=ui["decimal"],
                       export_loads=ui["loads"], include_columns=ui["columns"], include_beams=ui["beams"],
-                      include_slabs=ui["slabs"], e_overrides=dict(ui.get("e_overrides", {})), split_walls_at_nodes=True),
+                      include_slabs=ui["slabs"], e_overrides=dict(ui.get("e_overrides", {})), split_walls_at_nodes=True,
+                      template_path=ui.get("template_path", ""), template_definitions=ui.get("tpl_def", True),
+                      template_analysis=ui.get("tpl_analysis", True), template_combos=ui.get("tpl_combos", True),
+                      origin_at_min_corner=ui.get("origin_corner", True), bounding_grids=ui.get("bounding_grids", True)),
         source=base.source)
 
 
@@ -286,8 +289,24 @@ with st.sidebar:
         "slabs": st.checkbox("Lajes", True),
         "loads": st.checkbox("Cargas de uso (ADI / DIS)", base_config.etabs.export_loads),
     }
-    st.markdown('<div class="step" style="margin-top:18px">3 · Regras de modelagem</div>', unsafe_allow_html=True)
-    ui = {**sel,
+    st.markdown('<div class="step" style="margin-top:18px">3 · Modelo de referência (.e2k)</div>', unsafe_allow_html=True)
+    tpl_up = st.file_uploader("Template do escritório (.e2k)", type=["e2k"],
+                              help="Materiais, seções, diafragmas, casos, combinações, mass source e P-Delta "
+                                   "são reaproveitados desse modelo. A geometria vem sempre do TQS.")
+    tpl = {"template_path": "", "tpl_def": True, "tpl_analysis": True, "tpl_combos": True}
+    if tpl_up is not None:
+        key = f"tpl:{tpl_up.name}:{tpl_up.size}"
+        if st.session_state.get("tpl_key") != key:
+            path = Path(tempfile.mkdtemp(prefix="tqs2etabs_tpl_")) / tpl_up.name
+            path.write_bytes(tpl_up.getvalue())
+            st.session_state["tpl_key"] = key
+            st.session_state["tpl_path"] = str(path)
+        tpl["template_path"] = st.session_state.get("tpl_path", "")
+        tpl["tpl_def"] = st.checkbox("Materiais, seções e preferências", True)
+        tpl["tpl_analysis"] = st.checkbox("Casos de carga, mass source e P-Delta", True)
+        tpl["tpl_combos"] = st.checkbox("Combinações de carga", True)
+    st.markdown('<div class="step" style="margin-top:18px">4 · Regras de modelagem</div>', unsafe_allow_html=True)
+    ui = {**sel, **tpl,
         "default_material": st.text_input("Material padrão (sem fck no TQS)", base_config.etabs.default_material),
         "aspect": st.slider("Pilar vira parede (shell) se L/B >", 1.0, 8.0, float(base_config.policy.wall_aspect_ratio), 0.5),
         "wall_end_snap": st.slider("Viga vai para a ponta da parede se a < (m)", 0.0, 0.5, float(base_config.tolerances.wall_end_snap), 0.01),
@@ -299,6 +318,10 @@ with st.sidebar:
         "decimal": st.selectbox("Separador decimal do E2K", [",", "."], index=0 if base_config.etabs.decimal_separator == "," else 1),
         "gx": st.selectbox("Grids X", ["letters", "numbers", "prefix"], index=0),
         "gy": st.selectbox("Grids Y", ["numbers", "letters", "prefix"], index=0),
+        "origin_corner": st.toggle("Origem (0,0) no canto inferior esquerdo", base_config.etabs.origin_at_min_corner),
+        "bounding_grids": st.toggle("Eixos nos extremos do perímetro", base_config.etabs.bounding_grids,
+                                    help="Cria um eixo em cada extremo do modelo (inclusive ponta de viga e "
+                                         "bordo de laje) para que nada fique fora da malha de eixos."),
     }
 
 if load_clicked and folder is not None:
@@ -453,7 +476,7 @@ with tab_diag:
     show_diags(bd.diagnostics, ("ERROR", "WARNING", "INFO"), limit=200)
 
 # ---------------------------------------------------------------- 4 · gerar
-st.markdown('<div class="step" style="margin-top:12px">4 · Gerar modelo ETABS</div>', unsafe_allow_html=True)
+st.markdown('<div class="step" style="margin-top:12px">5 · Gerar modelo ETABS</div>', unsafe_allow_html=True)
 gen = st.button("⚙️ Gerar E2K", type="primary", use_container_width=True, disabled=bool(errs))
 if gen:
     try:

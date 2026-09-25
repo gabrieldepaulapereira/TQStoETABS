@@ -50,6 +50,8 @@ class GridNaming:
     start_index: int = 1
     secondary_grids_from_beams: bool = False
     grids_at_frame_columns: bool = True     # pilar-frame gera grid X e Y pelo centroide
+    boundary_tolerance: float = 0.25        # grid de extremo so e criado se o ultimo estiver a mais que isto
+                                            # (0,25 m ignora a meia-espessura tipica de parede/viga)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +79,12 @@ class EtabsOptions:
     pattern_dead_extra: str = "SDL"       # caso 3 (permanentes) -> Super Dead
     pattern_live: str = "LIVE"            # caso 4 (acidentais)  -> Live
     mass_live_factor: float = 0.25
+    template_path: str = ""               # .e2k de referencia: definicoes, casos e combinacoes do escritorio
+    template_definitions: bool = True     # materiais, secoes, diafragmas, funcoes e preferencias do template
+    template_analysis: bool = True        # load patterns, load cases, mass source e opcoes de analise
+    template_combos: bool = True          # combinacoes de carga
+    origin_at_min_corner: bool = True     # translada o modelo para que (0,0) seja o canto inferior esquerdo
+    bounding_grids: bool = True           # garante grid nos extremos do perimetro (inclui vigas e lajes)
 
 
 @dataclass(frozen=True, slots=True)
