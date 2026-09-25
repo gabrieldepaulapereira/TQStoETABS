@@ -75,15 +75,22 @@ def test_reads_sections_and_separator():
     assert tpl.lines("LOAD COMBINATIONS")[0].strip().startswith('COMBO "TOTDL"')
 
 
-def test_case_without_pattern_is_dropped_with_its_combo():
-    """FACADE nao existe neste modelo: o caso e a combinacao que o usa saem, o resto fica."""
+def test_missing_pattern_is_created_so_cases_and_combos_survive():
+    """FACADE e citado por um caso mas nao definido: o pattern e criado vazio e nada e descartado
+    (e o que permite lancar a carga depois, como o vento de tunel)."""
     _, plan, diags = prepared()
-    cases = set(plan.replaced["LOAD CASES"])
-    assert cases == {"Modal", "DEAD", "Seq-DEAD", "Pos-Seq"}
-    assert plan.replaced["LOAD COMBINATIONS"] == {"TOTDL", "ULS1"}      # COM-FACADE descartada
-    assert any(d.code == "TPL-W-CASE-DROP" and "FACADE" in d.message for d in diags)
-    # mass source perde a linha da carga inexistente
-    assert not any("FACADE" in l for l in plan.sections["MASS SOURCE"])
+    assert set(plan.replaced["LOAD CASES"]) == {"Modal", "DEAD", "FACADE", "Seq-DEAD", "Pos-Seq"}
+    assert plan.replaced["LOAD COMBINATIONS"] == {"TOTDL", "ULS1", "COM-FACADE"}
+    created = [l for l in plan.sections["LOAD PATTERNS"] if '"FACADE"' in l]
+    assert created == ['  LOADPATTERN "FACADE"  TYPE  "Other"  SELFWEIGHT  0']
+    assert any(d.code == "TPL-I-PATTERN-ADD" and "FACADE" in d.message for d in diags)
+    assert any("FACADE" in l for l in plan.sections["MASS SOURCE"])      # a carga existe: a linha fica
+
+
+def test_wind_pattern_type_is_guessed():
+    from tqs2etabs.exporters.etabs.template import guessed_pattern_type
+    assert guessed_pattern_type("Z-WT-50YR-01") == "Wind" and guessed_pattern_type("W50YRP") == "Wind"
+    assert guessed_pattern_type("EQX") == "Seismic" and guessed_pattern_type("FACADE") == "Other"
 
 
 def test_staged_case_rebuilt_over_our_stories():
@@ -127,3 +134,24 @@ def test_selective_import():
 def test_separator_detection():
     assert detect_separator("COORD 1,25  TOL 0,0001") == ","
     assert detect_separator("COORD 1.25  TOL 0.0001") == "."
+
+
+def test_separator_ignores_log_and_quoted_names():
+    """O $ LOG do ETABS tem datas e caminhos com ponto; nao pode inverter a deteccao."""
+    text = ('$ CONTROLS\n  PREFERENCE  MERGETOL 0,00254\n  UNITS  "KN"  "M"  "C"\n'
+            '$ POINT SPRING PROPERTIES\n  POINTSPRING  "SP1.5MDIA-300.ST."  UZ  300000\n'
+            + "$ LOG" + chr(10) + chr(10).join(
+                "  ETABS 18.1.1 saved " + chr(67) + ":/proj/Template_v1.1.EDB at 10/13/2010 3:07:02"
+                for _ in range(50)))
+    assert detect_separator(text) == ","
+
+
+def test_reseparated_keeps_quoted_names(tmp_path):
+    """Template com virgula gravado com ponto: numeros mudam, nomes entre aspas nao."""
+    from tqs2etabs.exporters.etabs.e2k_writer import _reseparated
+    tpl = read_template(TEMPLATE, "t.e2k")
+    plan, _ = prepare_template(tpl, ("1-Tipo",), ("DEAD",))
+    plan.sections["POINT SPRING PROPERTIES"] = ['  POINTSPRING  "SP1.5MDIA-300.ST."  UZ  1,5']
+    out = _reseparated(plan, ".")
+    assert out.sections["POINT SPRING PROPERTIES"] == ['  POINTSPRING  "SP1.5MDIA-300.ST."  UZ  1.5']
+    assert out.separator == "."

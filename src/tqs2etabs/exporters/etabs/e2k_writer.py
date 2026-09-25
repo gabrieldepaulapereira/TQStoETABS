@@ -186,10 +186,16 @@ def write_e2k_file(desc: EtabsDescription, opt: EtabsOptions, path: Path | str) 
 
 
 def _reseparated(plan, separator: str):
-    """Template gravado com outro separador decimal: troca apenas em numeros (1,5 <-> 1.5)."""
+    """Template gravado com outro separador decimal: troca so em numeros e so fora de aspas
+    (nomes como "SP1.5MDIA-300.ST." nao podem ser alterados)."""
     import re
     from dataclasses import replace as _replace
     src, dst = (",", ".") if separator == "." else (".", ",")
-    pat = re.compile(rf"(?<=\d){re.escape(src)}(?=\d)")
-    sections = {name: [pat.sub(dst, line) for line in lines] for name, lines in plan.sections.items()}
+    num = re.compile(rf"(?<=\d){re.escape(src)}(?=\d)")
+    parts = re.compile(r'("[^"]*")')
+
+    def fix(line: str) -> str:
+        return "".join(p if p.startswith('"') else num.sub(dst, p) for p in parts.split(line))
+
+    sections = {name: [fix(line) for line in lines] for name, lines in plan.sections.items()}
     return _replace(plan, sections=sections, separator=separator)

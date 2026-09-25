@@ -290,7 +290,7 @@ with st.sidebar:
         "loads": st.checkbox("Cargas de uso (ADI / DIS)", base_config.etabs.export_loads),
     }
     st.markdown('<div class="step" style="margin-top:18px">3 · Modelo de referência (.e2k)</div>', unsafe_allow_html=True)
-    tpl_up = st.file_uploader("Template do escritório (.e2k)", type=["e2k"],
+    tpl_up = st.file_uploader("Template do escritório (.e2k ou .$et)", type=["e2k", "$et"],
                               help="Materiais, seções, diafragmas, casos, combinações, mass source e P-Delta "
                                    "são reaproveitados desse modelo. A geometria vem sempre do TQS.")
     tpl = {"template_path": "", "tpl_def": True, "tpl_analysis": True, "tpl_combos": True}

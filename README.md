@@ -69,7 +69,16 @@ Reaproveita de um modelo ETABS existente (o mesmo `--template` vale para `export
   rigidez**, diafragmas, funções, conjuntos de carga de shell — o template vence quando o nome coincide
   (exceção: material cujo E o usuário escolheu na aba Materiais);
 - **configuração**: opções de análise (P-Delta, malha), mass source e preferências de dimensionamento;
-- **casos e combinações**: `LOAD PATTERNS` (merge), `LOAD CASES` e `LOAD COMBINATIONS`.
+- **casos e combinações**: `LOAD PATTERNS` (merge), `LOAD CASES`, `LOAD COMBINATIONS` e os **nomes** dos
+  grupos (sem os membros, que pertencem ao modelo de origem).
+
+As combinações do template **existem mesmo sem a carga correspondente**: um load pattern citado por um caso
+mas não definido no template é criado vazio (tipo deduzido do nome: `Wind` para `Z-WT-…`/`W50YRP`, `Seismic`
+para `EQ…`, senão `Other`), de modo que os casos e combinações de túnel de vento já ficam prontos para você
+lançar as cargas depois. Aceita `.e2k` e `.$et`.
+
+As cargas do TQS entram nos padrões do escritório: **carga permanente → `SDL`** e **carga acidental de uso →
+`RLIVE`** (`pattern_dead_extra` / `pattern_live` em `[etabs]`).
 
 A geometria (pontos, barras, áreas, stories, grids, piers, cargas) vem sempre do TQS. Como o template foi
 gravado para outro edifício, o que referencia objetos inexistentes é corrigido ou descartado com aviso:

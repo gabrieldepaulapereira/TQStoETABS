@@ -77,7 +77,8 @@ class EtabsOptions:
     e_overrides: dict[str, float] = field(default_factory=dict)   # classe -> E adotado (MPa); vence CONCRETO.DAT/NBR
     tf_to_kn: float = 9.80665
     pattern_dead_extra: str = "SDL"       # caso 3 (permanentes) -> Super Dead
-    pattern_live: str = "LIVE"            # caso 4 (acidentais)  -> Live
+    pattern_live: str = "RLIVE"           # caso 4 (acidentais)  -> Reducible Live (convencao do escritorio)
+    pattern_live_type: str = "Reducible Live"
     mass_live_factor: float = 0.25
     template_path: str = ""               # .e2k de referencia: definicoes, casos e combinacoes do escritorio
     template_definitions: bool = True     # materiais, secoes, diafragmas, funcoes e preferencias do template

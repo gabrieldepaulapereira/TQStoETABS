@@ -65,5 +65,6 @@ origin_at_min_corner = true    # (0,0) no canto inferior esquerdo do perimetro
 bounding_grids = true          # cria grid nos extremos do perimetro (inclui pontas de viga e bordo de laje)
 tf_to_kn = 9.80665
 pattern_dead_extra = "SDL"     # padrao de carga permanente adicional (Super Dead)
-pattern_live = "LIVE"          # padrao de carga acidental (Live)
+pattern_live = "RLIVE"         # padrao de carga acidental de uso (Reducible Live, convencao do escritorio)
+pattern_live_type = "Reducible Live"
 mass_live_factor = 0.25

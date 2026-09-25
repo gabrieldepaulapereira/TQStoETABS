@@ -375,7 +375,8 @@ class EtabsMapper:
         if self.opt.pattern_dead_extra in used:
             pats.append(ELoadPattern(self.opt.pattern_dead_extra, "Super Dead", 0.0, 1.0))
         if self.opt.pattern_live in used:
-            pats.append(ELoadPattern(self.opt.pattern_live, "Live", 0.0, self.opt.mass_live_factor))
+            pats.append(ELoadPattern(self.opt.pattern_live, self.opt.pattern_live_type, 0.0,
+                                     self.opt.mass_live_factor))
         return tuple(pats)
 
     # ------------------------------------------------------------ resultado

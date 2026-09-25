@@ -16,8 +16,11 @@ corrigido ou descartado, sempre com diagnostico:
 - casos de construcao sequencial (`Nonlinear Static Staged Construction`) tem os estagios refeitos
   sobre os pavimentos deste modelo (um estagio por pavimento, de baixo para cima, com os mesmos
   padroes de carga do template);
-- caso que usa um load pattern inexistente e descartado; combinacao que usa caso/combinacao
-  inexistente perde a linha e, se ficar vazia, e descartada (resolvido por ponto fixo).
+- load pattern citado por um caso do template mas nao definido nele e **criado vazio** (sem cargas),
+  para que o caso e as combinacoes existam desde ja — e o que permite lancar depois as cargas de tunel
+  de vento nas combinacoes que ja vieram prontas;
+- caso cuja condicao inicial (INITCOND) aponta para um caso inexistente e descartado; combinacao que
+  perde a referencia sai junto (ponto fixo).
 """
 
 from __future__ import annotations
@@ -46,12 +49,23 @@ CASE_SECTION = "LOAD CASES"
 COMBO_SECTION = "LOAD COMBINATIONS"
 # Nunca vem do template (geometria/atribuicoes deste modelo ou referencias a objetos de outro).
 IGNORED_SECTIONS = ("PROGRAM INFORMATION", "STORIES - IN SEQUENCE FROM TOP", "GRIDS", "PIER/SPANDREL NAMES ",
-                    "POINT COORDINATES", "LINE CONNECTIVITIES", "AREA CONNECTIVITIES", "GROUPS",
+                    "POINT COORDINATES", "LINE CONNECTIVITIES", "AREA CONNECTIVITIES",
                     "POINT ASSIGNS", "LINE ASSIGNS", "AREA ASSIGNS", "POINT OBJECT LOADS",
                     "FRAME OBJECT LOADS", "SHELL OBJECT LOADS", "GENERALIZED DISPLACEMENTS",
                     "DIMENSION LINES", "DEVELOPED ELEVATIONS", "TABLE SETS", "PROJECT INFORMATION", "LOG")
 
 STAGED_TYPE = "Nonlinear Static Staged Construction"
+_WIND_RE = re.compile(r"(^|[-_ ])(WT|WIND|VENT)|W\d+YR|WX|WY", re.IGNORECASE)
+_SEISMIC_RE = re.compile(r"(^|[-_ ])(EQ|SEIS|SISM)", re.IGNORECASE)
+
+
+def guessed_pattern_type(name: str) -> str:
+    """TYPE de um load pattern que o template cita mas nao define (vento de tunel, sismo, outros)."""
+    if _WIND_RE.search(name):
+        return "Wind"
+    if _SEISMIC_RE.search(name):
+        return "Seismic"
+    return "Other"
 
 
 def object_name(line: str) -> str | None:
@@ -98,10 +112,19 @@ def group_by_object(lines: list[str]) -> dict[str, list[str]]:
     return out
 
 
+_NOISY_SECTIONS = ("LOG", "PROJECT INFORMATION", "TABLE SETS")
+
+
 def detect_separator(text: str) -> str:
-    """Separador decimal do arquivo: o ETABS grava no separador do Windows."""
-    comma = len(re.findall(r"\d,\d", text))
-    dot = len(re.findall(r"\d\.\d", text))
+    """Separador decimal do arquivo (o ETABS grava no separador do Windows).
+
+    So conta numeros fora de aspas e fora das secoes de texto livre: o `$ LOG` guarda o historico do
+    ETABS com datas e caminhos (`v1.1.EDB`, `10/13/2010 3:07:02`) e sozinho inverteria a deteccao."""
+    sections = parse_sections(text) if "$" in text else {"": text.splitlines()}
+    useful = [l for name, lines in sections.items() if name not in _NOISY_SECTIONS for l in lines]
+    clean = re.sub(r'"[^"]*"', '""', chr(10).join(useful) or text)
+    comma = len(re.findall(r"\d,\d", clean))
+    dot = len(re.findall(r"\d\.\d", clean))
     return "," if comma >= dot else "."
 
 
@@ -233,6 +256,13 @@ def prepare_template(tpl: E2kTemplate, stories: tuple[str, ...], our_patterns: t
     notes: list[str] = []
 
     if definitions:
+        groups = [l for l in tpl.lines("GROUPS") if len(tokens(l)) <= 2]      # so "GROUP \"NOME\"" (sem membros)
+        if groups:
+            sections["GROUPS"] = groups
+            replaced["GROUPS"] = set(group_by_object(groups))
+            if len(groups) < len(tpl.lines("GROUPS")):
+                diag.info("TPL-I-GROUPS", f"{len(groups)} grupos criados vazios (os membros pertencem ao modelo "
+                          "de origem)", Source.EXPORTER)
         for name in LIBRARY_SECTIONS:
             lines = tpl.lines(name)
             if not lines:
@@ -266,13 +296,21 @@ def prepare_template(tpl: E2kTemplate, stories: tuple[str, ...], our_patterns: t
             patterns |= replaced[PATTERN_SECTION]
 
         case_objs = group_by_object(tpl.lines(CASE_SECTION))
+        # pattern citado por um caso mas nao definido no template: criado vazio, para o caso e as
+        # combinacoes existirem desde ja (o usuario lanca a carga depois, ex.: tunel de vento)
+        missing_pats = sorted({p for lines in case_objs.values() for p in _case_patterns(lines)} - patterns)
+        if missing_pats:
+            extra = [f'  LOADPATTERN "{n}"  TYPE  "{guessed_pattern_type(n)}"  SELFWEIGHT  0' for n in missing_pats]
+            sections[PATTERN_SECTION] = sections.get(PATTERN_SECTION, []) + extra
+            replaced[PATTERN_SECTION] = replaced.get(PATTERN_SECTION, set()) | set(missing_pats)
+            patterns |= set(missing_pats)
+            diag.info("TPL-I-PATTERN-ADD", f"{len(missing_pats)} load patterns criados sem carga para manter os "
+                      f"casos e combinacoes do template: " + ", ".join(f"{n} ({guessed_pattern_type(n)})"
+                                                                       for n in missing_pats[:10]), Source.EXPORTER)
+            notes.append(f"{len(missing_pats)} load patterns sem carga criados (template): "
+                         + ", ".join(missing_pats[:6]) + (" ..." if len(missing_pats) > 6 else ""))
         kept: dict[str, list[str]] = {}
         for case, lines in case_objs.items():
-            missing = sorted(_case_patterns(lines) - patterns)
-            if missing:
-                diag.warning("TPL-W-CASE-DROP", f"Caso '{case}' do template descartado: load pattern "
-                             f"{', '.join(missing)} nao existe neste modelo", Source.EXPORTER)
-                continue
             if any(STAGED_TYPE in l for l in lines):
                 if not stories:
                     diag.warning("TPL-W-STAGED-DROP", f"Caso sequencial '{case}' descartado: modelo sem pavimentos",
