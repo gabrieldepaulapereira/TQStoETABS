@@ -100,6 +100,14 @@ def verify_export(model: StructuralModel, desc: EtabsDescription, e2k: E2kModel,
         if a[0] != "FLOOR" or a[1] != expected:
             diag.error("XPT-E-SLAB-CONN", f"{slab.id}: vertices diferentes", V, refs=(slab.id,))
 
+    # template: patterns/casos/combinacoes previstos precisam estar no arquivo escrito
+    if check_counts and desc.template is not None:
+        expected = set(desc.template.replaced.get("LOAD PATTERNS", set())) | {p.name for p in desc.load_patterns}
+        missing = sorted(expected - set(e2k.load_patterns))
+        if missing:
+            diag.error("XPT-E-TEMPLATE-PATTERNS", f"load patterns do template ausentes no E2K: "
+                       f"{', '.join(missing[:12])}", V)
+
     # grids e story
     grids = {(g.label, g.direction, round(g.coordinate, 4)) for g in desc.grids}
     got_g = {(l, d, round(c, 4)) for l, d, c in e2k.grids}

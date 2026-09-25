@@ -297,14 +297,22 @@ with st.sidebar:
     if tpl_up is not None:
         key = f"tpl:{tpl_up.name}:{tpl_up.size}"
         if st.session_state.get("tpl_key") != key:
-            path = Path(tempfile.mkdtemp(prefix="tqs2etabs_tpl_")) / tpl_up.name
-            path.write_bytes(tpl_up.getvalue())
             st.session_state["tpl_key"] = key
+            st.session_state["tpl_bytes"] = tpl_up.getvalue()
+            st.session_state["tpl_name"] = tpl_up.name
+            st.session_state.pop("tpl_path", None)
+        path = Path(st.session_state.get("tpl_path", ""))
+        if not path.name or not path.exists():           # primeira vez ou temp limpo entre reruns
+            path = Path(tempfile.mkdtemp(prefix="tqs2etabs_tpl_")) / st.session_state["tpl_name"]
+            path.write_bytes(st.session_state["tpl_bytes"])
             st.session_state["tpl_path"] = str(path)
-        tpl["template_path"] = st.session_state.get("tpl_path", "")
+        tpl["template_path"] = str(path)
         tpl["tpl_def"] = st.checkbox("Materiais, seções e preferências", True)
         tpl["tpl_analysis"] = st.checkbox("Casos de carga, mass source e P-Delta", True)
         tpl["tpl_combos"] = st.checkbox("Combinações de carga", True)
+    else:
+        st.caption("Sem template, o E2K sai só com o load pattern DEAD (mais SDL/LIVE das cargas do TQS): "
+                   "sem combinações, mass source nem P-Delta.")
     st.markdown('<div class="step" style="margin-top:18px">4 · Regras de modelagem</div>', unsafe_allow_html=True)
     ui = {**sel, **tpl,
         "default_material": st.text_input("Material padrão (sem fck no TQS)", base_config.etabs.default_material),
@@ -506,7 +514,16 @@ if result is not None:
     kpi(k5, c["slabs"], "lajes")
     kpi(k6, c["area_loads"] + c["line_loads"], "cargas")
     status = "err" if result.has_errors else "ok"
+    if d.template is not None:
+        r = d.template.replaced
+        tpl_badge = (f'<span class="badge ok">template {Path(d.template.source).name}: '
+                     f'{len(r.get("LOAD PATTERNS", ()))} load patterns, {len(r.get("LOAD CASES", ()))} casos, '
+                     f'{len(r.get("LOAD COMBINATIONS", ()))} combinações, '
+                     f'{len(r.get("MATERIAL PROPERTIES", ()))} materiais</span>')
+    else:
+        tpl_badge = '<span class="badge warn">sem template: só DEAD e as cargas do TQS</span>'
     st.markdown(f'<span class="badge {status}">{"com erros — veja o diagnóstico" if result.has_errors else "validação pós-exportação sem erros"}</span>'
+                + tpl_badge +
                 f'<span class="badge">piers: {", ".join(d.piers)}</span>'
                 f'<span class="badge">grids: {", ".join(g.label for g in d.grids)}</span>', unsafe_allow_html=True)
     fname = f"{d.title.replace(' ', '_') or 'modelo'}.e2k"
