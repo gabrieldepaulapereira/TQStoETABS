@@ -79,14 +79,16 @@ def test_wall_end_snap_and_slab_rules(result):
     m = result.model
     wall = result.engine.step("snap_beams_to_wall_ends")
     assert wall.stats["beams_moved"] == 10
-    # V1 vai da ponta de P1 (y = 24,83) ao canto do nucleo P3 (24,68): pontas em linhas diferentes -> viga
-    # levemente inclinada, sem toco nem dente; V7 passa pelas pontas dos bracos do P3 (y = 22,14)
-    assert m.node("N37").y == 24.83 and (m.node("N38").x, m.node("N38").y) == (-11.76, 24.68)
-    assert 24.68 < m.node("N42").y < 24.83
-    assert all(m.node(n).y == 22.14 for n in m.beams["V7"].axis)
-    # V13: ponta de P5 (15,09) e canto do P6 (cruzamento dos eixos, 15,24)
-    assert m.node("N32").y == 15.09 and (m.node("N33").x, m.node("N33").y) == (-11.76, 15.24)
-    assert any(d.code == "ALIGN-I-WALL-END-TILT" and "V13" in d.refs for d in m.diagnostics)
+    # vigas NUNCA inclinadas: o alinhamento inteiro desloca junto. A fachada de cima (V1, V2) vai para o eixo da
+    # alma do P3 (24,68), alcancando os cantos do nucleo e continuando sobre P1/P2 (apoio no eixo da parede);
+    # a de baixo (V12-V13, V14-V15) vai para a alma do P6 (15,24), conectada tambem a P4/P5/P7/P8
+    for b, y in (("V1", 24.68), ("V2", 24.68), ("V12", 15.24), ("V13", 15.24), ("V14", 15.24), ("V15", 15.24)):
+        assert {m.node(n).y for n in m.beams[b].axis} == {y}, b
+    assert (m.node("N38").x, m.node("N38").y) == (-11.76, 24.68) and (m.node("N33").x, m.node("N33").y) == (-11.76, 15.24)
+    assert all(m.node(n).y == 22.14 for n in m.beams["V7"].axis)     # V7 pelas pontas dos bracos do P3
+    for beam in m.beams.values():                                      # nenhuma viga inclinada neste pavimento
+        pts = [m.node(n).point for n in beam.axis]
+        assert len({round(p.x, 4) for p in pts}) == 1 or len({round(p.y, 4) for p in pts}) == 1, beam.id
     # lajes: rebaixos absorvidos, vertices nas linhas medias, aberturas nos vazios
     assert result.engine.step("absorb_offset_slabs").stats["absorbed"] == 6
     assert set(m.slabs) == {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"}

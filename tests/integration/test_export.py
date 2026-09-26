@@ -41,7 +41,7 @@ def test_e2k_file_content(result):
     assert 'LINE  "V16"  BEAM  "3"  "4"  0' in text
     assert 'SECTION "W60-C60"  PIER  "P3"  OBJMESHTYPE' in text
     assert 'MASTERSTORY "Yes"' in text and text.rstrip().endswith('$ END OF MODEL FILE')
-    assert 'POINT "37"  8,39 9,74 ' in text               # V1 na ponta do P1 (ja na origem transladada)
+    assert 'POINT "37"  8,39 9,59 ' in text               # V1 reta no eixo da alma do P3 (origem transladada)
     assert text.count('RESTRAINT "UX UY UZ RX RY RZ"') == result.description.counts()["restraints"]
     e2k = read_e2k_text(text, ",")
     assert e2k.stories == {"25 - Tipo": 3.24, "BASE": 71.53}

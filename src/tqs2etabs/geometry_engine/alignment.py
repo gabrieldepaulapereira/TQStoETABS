@@ -269,19 +269,24 @@ def _wall_true_ends(col: Column, tol: float) -> list[Point]:
 
 
 def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResult:
-    """Viga que encontra o eixo de uma parede a menos de wall_end_snap da ponta dessa parede
-    e deslocada transversalmente (toda a linha do eixo) ate passar pela ponta ("no do pilar"),
-    evitando o dente entre o fim da parede e a viga. Candidatos de varias paredes na mesma
-    viga: escolhe-se o deslocamento que minimiza o maior residuo; pontas de junção (canto de
-    nucleo) nao contam como ponta."""
+    """Viga que encontra o eixo de uma parede a menos de wall_end_snap da ponta dessa parede e deslocada
+    transversalmente ate passar pela ponta ("no do pilar"), evitando o dente entre o fim da parede e a viga.
+
+    A viga **nunca e inclinada**: o deslocamento e rigido e decidido por alinhamento — vigas colineares que
+    compartilham nos (V12-V13 na mesma linha de fachada) andam juntas. Entre os deslocamentos possiveis
+    (nenhum, ou o que leva a cada ponta candidata) escolhe-se o que mantem mais apoios em parede conectados
+    (no sobre o eixo da parede), depois o que alcanca mais pontas, depois o menor. Apoio que nao esta perto
+    de ponta nenhuma (viga correndo sobre a parede) nunca pode sair do eixo. Ponta nao alcancada: a viga
+    termina no alinhamento do pilar (onde a extensao ja a deixou)."""
     tolc = config.tolerances
     dec = tolc.rounding_decimals
+    tol = tolc.node_merge
     diag = DiagnosticCollector()
-    ends_cache = {cid: _wall_true_ends(c, tolc.node_merge)
+    ends_cache = {cid: _wall_true_ends(c, tol)
                   for cid, c in model.columns.items() if c.kind_hint == ColumnKind.WALL and c.axes}
 
-    node_targets: dict[str, list[tuple[Point, str, str]]] = {}
-    beam_shift: dict[str, tuple[float, str]] = {}
+    # ---------------------------------------------------------------- dados por viga reta
+    info: dict[str, tuple[tuple[float, float], tuple[float, float], float]] = {}   # viga -> (u, nrm, offset)
     for beam in model.beams.values():
         if len(beam.axis) < 2:
             continue
@@ -290,103 +295,93 @@ def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResul
         if u is None:
             continue
         nrm = (-u[1], u[0])
-        # candidatos: (deslocamento perpendicular, pilar, no)
-        cands: list[tuple[float, str, str]] = []
-        for sup in beam.supports:
-            if sup.kind != SupportKind.COLUMN or sup.ref_id not in ends_cache:
-                continue
-            p = model.node(sup.node_id).point
-            for e in ends_cache[sup.ref_id]:
-                d = p.distance_to(e)
-                if d > tolc.wall_end_snap:
-                    continue
-                along = abs((e.x - p.x) * u[0] + (e.y - p.y) * u[1])
-                if along > tolc.node_merge:      # ponta na direcao da viga: nao e caso de dente
-                    continue
-                s = (e.x - p.x) * nrm[0] + (e.y - p.y) * nrm[1]
-                cands.append((s, sup.ref_id, sup.node_id))
-        if not cands:
-            continue
+        if any(abs((model.node(n).point.x - a.x) * nrm[0] + (model.node(n).point.y - a.y) * nrm[1]) > tol
+               for n in beam.axis):
+            continue                                   # poligonal/curva: fora da regra
+        info[beam.id] = (u, nrm, a.x * nrm[0] + a.y * nrm[1])
 
-        def keeps_supports(s: float) -> bool:
-            """Nenhum apoio em pilar da viga pode sair do eixo do seu pilar com o deslocamento."""
-            for sup in beam.supports:
-                if sup.kind != SupportKind.COLUMN:
-                    continue
-                col = model.columns.get(sup.ref_id or "")
-                if col is None or col.kind_hint != ColumnKind.WALL or not col.axes:
+    # ---------------------------------------------------------------- alinhamentos (vigas colineares ligadas)
+    parent = {bid: bid for bid in info}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    by_node: dict[str, list[str]] = {}
+    for bid in info:
+        for nid in model.beams[bid].axis:
+            by_node.setdefault(nid, []).append(bid)
+    for bids in by_node.values():
+        for i in range(len(bids)):
+            for j in range(i + 1, len(bids)):
+                (u1, n1, c1), (u2, _, _) = info[bids[i]], info[bids[j]]
+                if abs(u1[0] * u2[1] - u1[1] * u2[0]) > 1e-6:
+                    continue                           # perpendiculares: nao sao o mesmo alinhamento
+                p2 = model.node(model.beams[bids[j]].axis[0]).point
+                if abs(p2.x * n1[0] + p2.y * n1[1] - c1) <= tol:
+                    parent[find(bids[i])] = find(bids[j])
+    groups: dict[str, list[str]] = {}
+    for bid in info:
+        groups.setdefault(find(bid), []).append(bid)
+
+    # ---------------------------------------------------------------- decisao por alinhamento
+    node_targets: dict[str, list[tuple[tuple[float, float], str, str]]] = {}
+    beam_shift: dict[str, tuple[float, str]] = {}
+    for bids in groups.values():
+        u, nrm, _ = info[bids[0]]
+        supports: dict[tuple[str, str], Point] = {}           # (no, pilar) -> ponto
+        cands: list[tuple[float, str, str]] = []              # (deslocamento, pilar, no)
+        for bid in bids:
+            for sup in model.beams[bid].supports:
+                if sup.kind != SupportKind.COLUMN or sup.ref_id not in ends_cache:
                     continue
                 p = model.node(sup.node_id).point
-                q = Point(p.x + s * nrm[0], p.y + s * nrm[1])
-                d = min(_dist_to_segment(q, seg) for seg in col.axes)
-                if d > tolc.node_merge:
-                    return False
-            return True
-
-        def worst(s: float) -> float:
-            return max(abs(s - c[0]) for c in cands)
-
-        options = [s for s in sorted({round(s, 6) for s, _, _ in cands}, key=abs) if keeps_supports(s)]
-        best = min(options, key=lambda s: (round(worst(s), 6), abs(s))) if options else None
-
-        # pontas de parede em linhas diferentes (ex.: ponta de P5 e canto do nucleo P6, a 15 cm uma da outra):
-        # um deslocamento rigido nao alcanca as duas -> cada extremidade vai para a sua ponta e a viga fica
-        # levemente inclinada (os nos intermediarios acompanham por interpolacao linear)
-        per_node: dict[str, float] = {}
-        for sh, _, nid in sorted(cands, key=lambda c: abs(c[0])):
-            per_node.setdefault(nid, sh)
-        straight = all(abs((model.node(n).point.x - a.x) * nrm[0] + (model.node(n).point.y - a.y) * nrm[1])
-                       <= tolc.node_merge for n in beam.axis)          # so viga reta (nao poligonal/curva)
-        if straight and (best is None or worst(best) > tolc.node_merge)                 and len({round(v, 6) for v in per_node.values()}) > 1:
-            pos = {nid: (model.node(nid).point.x - a.x) * u[0] + (model.node(nid).point.y - a.y) * u[1]
-                   for nid in beam.axis}
-            known = sorted((pos[nid], sh) for nid, sh in per_node.items())
-
-            def interp(t: float) -> float:
-                if t <= known[0][0]:
-                    return known[0][1]
-                if t >= known[-1][0]:
-                    return known[-1][1]
-                for (t0, s0), (t1, s1) in zip(known, known[1:]):
-                    if t0 <= t <= t1:
-                        return s0 + (s1 - s0) * (t - t0) / (t1 - t0) if t1 > t0 else s0
-                return known[-1][1]
-
-            shifts = {nid: interp(pos[nid]) for nid in beam.axis}
-            ok = True
-            for sup in beam.supports:              # apoios fora dos candidatos nao podem sair do eixo
-                col = model.columns.get(sup.ref_id or "")
-                if sup.kind != SupportKind.COLUMN or sup.node_id in per_node or col is None                         or col.kind_hint != ColumnKind.WALL or not col.axes:
-                    continue
-                pnt = model.node(sup.node_id).point
-                q = Point(pnt.x + shifts[sup.node_id] * nrm[0], pnt.y + shifts[sup.node_id] * nrm[1])
-                if min(_dist_to_segment(q, seg) for seg in col.axes) > tolc.node_merge:
-                    ok = False
-            if ok:
-                refs = sorted({c[1] for c in cands})
-                beam_shift[beam.id] = (max(per_node.values(), key=abs), "/".join(refs))
-                for nid in beam.axis:
-                    node_targets.setdefault(nid, []).append(((shifts[nid] * nrm[0], shifts[nid] * nrm[1]),
-                                                             refs[0], beam.id))
-                diag.info("ALIGN-I-WALL-END-TILT", f"{beam.id}: extremidades levadas as pontas de {', '.join(refs)} "
-                          "em linhas diferentes (viga levemente inclinada): "
-                          + ", ".join(f"{nid} {fmt(sh)} m" for nid, sh in per_node.items()),
-                          Source.ENGINE, refs=(beam.id, *refs))
-                continue
-
-        if best is None:
-            diag.info("ALIGN-I-WALL-END-SKIPPED", f"{beam.id}: deslocamento para ponta de parede tiraria a viga do eixo "
-                      "de outro apoio; mantida", Source.ENGINE, refs=(beam.id,))
+                supports[(sup.node_id, sup.ref_id)] = p
+                for e in ends_cache[sup.ref_id]:
+                    if p.distance_to(e) > tolc.wall_end_snap:
+                        continue
+                    if abs((e.x - p.x) * u[0] + (e.y - p.y) * u[1]) > tol:
+                        continue                               # ponta na direcao da viga: nao e caso de dente
+                    cands.append(((e.x - p.x) * nrm[0] + (e.y - p.y) * nrm[1], sup.ref_id, sup.node_id))
+        if not cands:
             continue
+        cand_nodes = {(nid, cid) for _, cid, nid in cands}
+
+        def on_wall(key: tuple[str, str], s: float) -> bool:
+            p = supports[key]
+            q = Point(p.x + s * nrm[0], p.y + s * nrm[1])
+            return min(_dist_to_segment(q, seg) for seg in model.columns[key[1]].axes) <= tol
+
+        def score(s: float) -> tuple[int, int, float] | None:
+            if any(not on_wall(k, s) for k in supports if k not in cand_nodes and on_wall(k, 0.0)):
+                return None                                    # viga correndo sobre parede: nao sai do eixo
+            connected = sum(1 for k in supports if on_wall(k, s))
+            reached = sum(1 for c, _, _ in cands if abs(c - s) <= tol)
+            return (connected, reached, -abs(s))
+
+        options = {0.0} | {round(c, 6) for c, _, _ in cands}
+        scored = [(sc, s) for s in options if (sc := score(s)) is not None]
+        if not scored:
+            continue
+        best_score, best = max(scored)
         if abs(best) < 1e-9:
+            missed = sorted({cid for c, cid, _ in cands})
+            diag.info("ALIGN-I-WALL-END-KEPT", f"{'/'.join(sorted(bids))}: pontas de {', '.join(missed)} nao alcancadas "
+                      "sem inclinar a viga; viga mantida no alinhamento", Source.ENGINE, refs=tuple(sorted(bids)))
             continue
-        ref = next(c[1] for c in cands if abs(c[0] - best) < 1e-9)
-        beam_shift[beam.id] = (best, ref)
-        for nid in beam.axis:
-            node_targets.setdefault(nid, []).append(((best * nrm[0], best * nrm[1]), ref, beam.id))
-        if worst(best) > tolc.node_merge:
-            diag.warning("ALIGN-W-WALL-END-RESIDUAL", f"{beam.id}: deslocada {fmt(best)} m para a ponta de {ref}; "
-                         f"residuo de {fmt(worst(best))} m em outro apoio", Source.ENGINE, refs=(beam.id, ref))
+        refs = sorted({cid for c, cid, _ in cands if abs(c - best) <= tol})
+        missed = sorted({cid for c, cid, _ in cands if abs(c - best) > tol} - set(refs))
+        for bid in bids:
+            beam_shift[bid] = (best, "/".join(refs))
+            vec = (best * nrm[0], best * nrm[1])
+            for nid in model.beams[bid].axis:
+                node_targets.setdefault(nid, []).append((vec, refs[0], bid))
+        if missed:
+            diag.info("ALIGN-I-WALL-END-MISSED", f"{'/'.join(sorted(bids))}: deslocada {fmt(best)} m ate a ponta de "
+                      f"{', '.join(refs)}; ponta de {', '.join(missed)} nao alcancada sem inclinar a viga -> viga termina "
+                      "no alinhamento do pilar", Source.ENGINE, refs=tuple(sorted(bids)) + tuple(missed))
 
     nodes = dict(model.nodes)
     changes: list[ChangeRecord] = []
