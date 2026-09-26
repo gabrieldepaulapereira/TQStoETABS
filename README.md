@@ -103,8 +103,13 @@ de modelagem e gere o `.e2k` + relatório de auditoria, com o desenho de cada pl
 
 - **O que importar** (barra lateral): pilares/paredes, vigas, lajes e cargas de uso — o que estiver
   desmarcado não vai para o E2K (`EtabsOptions.include_columns/include_beams/include_slabs/export_loads`).
-- **Pavimentos**: coluna *Importar* por piso; um piso desmarcado é pulado e o story acima passa a ter a
-  altura entre as cotas restantes.
+- **Pavimentos** com **níveis paramétricos**: cota de cada piso = cota inicial (base) + soma dos pés-direitos.
+  Mudar um pé-direito desloca o piso e todos os de cima; mudar a cota inicial desloca todos; digitar uma cota
+  vira mudança do pé-direito daquele piso (`application/levels.py`). *Importar* desmarcado pula o piso
+  mantendo os níveis; *Remover* + botão apaga os pisos marcados e os de cima descem.
+- **Prévia da planta** logo após varrer (já com as regras de modelagem aplicadas) e aba **Elementos** com o
+  desenho completo — nomes de pilares, vigas (ao longo do eixo), lajes (com espessura) e, opcionalmente, nós —
+  e tabelas de pilares, vigas, lajes e nós (`app/plan_view.py`).
 - **Materiais**: por classe, E *atual* (CONCRETO.DAT do TQS), *Prudêncio* (tabela do modelo MARAMBAIA) e
   *NBR 6118* (Ecs = αi·5600·√fck); escolha a fonte ou um valor *manual* (`EtabsOptions.e_overrides`).
 

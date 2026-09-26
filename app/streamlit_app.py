@@ -56,6 +56,11 @@ from tqs2etabs.domain.diagnostics import Level                                # 
 from tqs2etabs.domain.elements import ColumnKind                              # noqa: E402
 from tqs2etabs.domain.materials import SOURCES, fck_of, material_options      # noqa: E402
 from tqs2etabs.importers.tqs.building import scan_building                    # noqa: E402
+from tqs2etabs.application.levels import base_from_first, cotas_from_heights, reconcile_levels  # noqa: E402
+from tqs2etabs.application.normalize import normalize                          # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from plan_view import element_tables, plan_figure                             # noqa: E402
 
 # --------------------------------------------------------------------------- visual
 st.set_page_config(page_title="TQS → ETABS", page_icon="🏗️", layout="wide", initial_sidebar_state="expanded")
@@ -85,6 +90,9 @@ h1, h2, h3 { font-weight: 800; letter-spacing: -0.02em; }
 .diag.ERROR { border-color: var(--err); } .diag.WARNING { border-color: var(--warn); } .diag.INFO { border-color: var(--acc); }
 div[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; }
 [data-testid="stTab"] p { color: var(--mut) !important; font-weight: 600; }
+[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] label { color: var(--txt) !important; }
+.stButton>button p, .stButton>button:disabled p { color: inherit; }
+.stButton>button:disabled { color: var(--mut) !important; border-color: var(--line) !important; }
 [data-testid="stTab"][aria-selected="true"] p { color: var(--acc2) !important; }
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: var(--acc2); }
 [data-testid="stTabs"] [data-baseweb="tab-border"] { background: var(--line); }
@@ -195,15 +203,48 @@ def windows_folder_dialog(initial: str = "") -> str | None:
         return None
 
 
-PISO_COLS = ["Importar", "Piso", "Título", "Planta", "Cota (m)", "Pé-direito (m)", "fck pilares", "fck vigas", "fck lajes"]
+PISO_COLS = ["Remover", "Importar", "Piso", "Título", "Planta", "Cota (m)", "Pé-direito (m)",
+             "fck pilares", "fck vigas", "fck lajes"]
 
 
 def pisos_to_df(bd: BuildingDefinition) -> pd.DataFrame:
-    rows = [{"Importar": True, "Piso": p.index, "Título": p.title, "Planta": p.plan_tag, "Cota (m)": p.elevation,
-             "Pé-direito (m)": p.height, "fck pilares": p.materials.get("pilares", ""),
-             "fck vigas": p.materials.get("vigas", ""), "fck lajes": p.materials.get("lajes", "")}
-            for p in bd.pisos]
+    """Pisos de baixo para cima. O PD de cada piso acima do primeiro e a diferenca de cotas do TQS, para que
+    as cotas originais se mantenham exatamente quando os niveis passam a ser derivados (base + soma dos PD)."""
+    rows, prev = [], None
+    for p in bd.pisos:
+        h = p.height if prev is None else round(p.elevation - prev, 4)
+        rows.append({"Remover": False, "Importar": True, "Piso": p.index, "Título": p.title, "Planta": p.plan_tag,
+                     "Cota (m)": p.elevation, "Pé-direito (m)": h, "fck pilares": p.materials.get("pilares", ""),
+                     "fck vigas": p.materials.get("vigas", ""), "fck lajes": p.materials.get("lajes", "")})
+        prev = p.elevation
     return pd.DataFrame(rows, columns=PISO_COLS)      # colunas fixas mesmo sem pisos
+
+
+def relevel(df: pd.DataFrame, base: float) -> pd.DataFrame:
+    """Renumera de baixo para cima e recalcula as cotas a partir da base e dos pes-direitos."""
+    df = df.reset_index(drop=True).copy()
+    df["Piso"] = range(1, len(df) + 1)
+    df["Cota (m)"] = cotas_from_heights(base, [float(h or 0) for h in df["Pé-direito (m)"]])
+    return df
+
+
+def set_pisos(df: pd.DataFrame) -> None:
+    """Troca a tabela canonica e renova a chave do editor (senao o data_editor reaplica as edicoes antigas)."""
+    st.session_state["pisos_df"] = df
+    st.session_state["pisos_ver"] = st.session_state.get("pisos_ver", 0) + 1
+
+
+@st.cache_resource(show_spinner=False, max_entries=64)
+def plan_preview(ldf: str, lst: str | None, stamp: float, cfg_key: str, _config: Config):
+    """Modelo normalizado de uma planta para a previa (cacheado por arquivo + regras de modelagem)."""
+    return normalize(ldf, lst, _config).model
+
+
+def preview_model(bd: BuildingDefinition, tag: str, config: Config):
+    plan = bd.plans[tag]
+    stamp = Path(plan.ldf_path).stat().st_mtime
+    key = repr((config.tolerances, config.policy, config.grids))
+    return plan_preview(plan.ldf_path, plan.lst_path, stamp, key, config)
 
 
 def df_to_pisos(df: pd.DataFrame, bd: BuildingDefinition, base_elevation: float) -> tuple[PisoDefinition, ...]:
@@ -332,20 +373,26 @@ with st.sidebar:
                                          "bordo de laje) para que nada fique fora da malha de eixos."),
     }
 
-if load_clicked and folder is not None:
-    if not folder.is_dir():
-        st.error(f"Pasta não encontrada: {folder}")
-    else:
-        bar, report = progress_bar("Leitura do edifício")
-        try:
-            bd = load_definition(folder, build_config(base_config, ui), progress=report)
-            st.session_state["definition"] = bd
-            st.session_state["pisos_df"] = pisos_to_df(bd)
-            st.session_state.pop("result", None)
-            bar.progress(1.0, text=f"Leitura concluída: {len(bd.plans)} plantas, {len(bd.pisos)} pisos")
-        except Exception as exc:  # noqa: BLE001
-            bar.progress(1.0, text="Leitura interrompida por erro — veja abaixo")
-            st.exception(exc)
+# slot fixo: a barra de leitura so existe no run do clique; sem o slot, os elementos abaixo mudam de
+# posicao no rerun seguinte e as abas voltam para a primeira
+_scan_slot = st.container()
+with _scan_slot:
+    if load_clicked and folder is not None:
+        if not folder.is_dir():
+            st.error(f"Pasta não encontrada: {folder}")
+        else:
+            bar, report = progress_bar("Leitura do edifício")
+            try:
+                bd = load_definition(folder, build_config(base_config, ui), progress=report)
+                st.session_state["definition"] = bd
+                first = bd.pisos[0] if bd.pisos else None
+                st.session_state["base_elev"] = base_from_first(first.elevation, first.height) if first else bd.base_elevation
+                set_pisos(relevel(pisos_to_df(bd), st.session_state["base_elev"]))
+                st.session_state.pop("result", None)
+                bar.progress(1.0, text=f"Leitura concluída: {len(bd.plans)} plantas, {len(bd.pisos)} pisos")
+            except Exception as exc:  # noqa: BLE001
+                bar.progress(1.0, text="Leitura interrompida por erro — veja abaixo")
+                st.exception(exc)
 
 bd: BuildingDefinition | None = st.session_state.get("definition")
 if bd is None:
@@ -379,41 +426,124 @@ if not bd.pisos:
              f"Plantas reconhecidas: {found}. Confira a pasta escolhida (deve ser a pasta do edifício, que contém "
              "as subpastas das plantas) e os avisos em *Diagnóstico da varredura*.")
 
-tab_pisos, tab_plantas, tab_mat, tab_cat, tab_diag = st.tabs(["Pavimentos", "Plantas", "Materiais", "Concreto (TQS)",
-                                                              "Diagnóstico da varredura"])
+# plantas na ordem dos pisos (a do piso mais baixo primeiro); fundacao por ultimo
+_first_piso = {}
+for _p in bd.pisos:
+    _first_piso.setdefault(_p.plan_tag, _p.index)
+preview_tags = (sorted((t for t, p in bd.plans.items() if not p.is_base), key=lambda t: _first_piso.get(t, 10**6))
+                + [t for t, p in bd.plans.items() if p.is_base])
+if preview_tags:
+    st.markdown('<div class="step" style="margin-top:14px">Prévia da planta</div>', unsafe_allow_html=True)
+    pv_col, _ = st.columns([2, 3])
+    pv_tag = pv_col.selectbox("Planta", preview_tags, key="preview_tag", label_visibility="collapsed",
+                              format_func=lambda t: f"{t} — {bd.plans[t].name}"
+                              + (" (fundação)" if bd.plans[t].is_base else ""))
+    try:
+        with st.spinner("Montando a prévia…"):
+            pv_model = preview_model(bd, pv_tag, build_config(base_config, ui))
+        st.plotly_chart(plan_figure(pv_model, height=460), use_container_width=True, key="preview_main", theme=None)
+        st.caption(f"{len(pv_model.columns)} pilares/paredes · {len(pv_model.beams)} vigas · {len(pv_model.slabs)} lajes "
+                   "— já com as regras de modelagem aplicadas (alinhamentos, lajes simplificadas). Detalhes na aba "
+                   "**Elementos**.")
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Prévia indisponível para {pv_tag}: {exc}")
+
+tab_pisos, tab_elem, tab_plantas, tab_mat, tab_cat, tab_diag = st.tabs(
+    ["Pavimentos", "Elementos", "Plantas", "Materiais", "Concreto (TQS)", "Diagnóstico da varredura"])
 
 with tab_pisos:
-    st.caption("Edite cota, pé-direito, planta e fck de cada piso. Use a última linha para **adicionar pavimentos** "
-               "(ex.: replicar um tipo); linhas podem ser removidas. Os pisos são renumerados de baixo para cima.")
+    st.caption("Níveis paramétricos: a cota de cada piso é **cota inicial + soma dos pés-direitos** abaixo dele. "
+               "Mudar um pé-direito desloca o piso e todos os de cima; mudar a cota inicial desloca todos; digitar "
+               "uma cota vira mudança do pé-direito daquele piso. *Importar* desmarcado pula o piso mantendo os "
+               "níveis; *Remover* + botão apaga o piso e os de cima descem.")
     plan_tags = [t for t, p in bd.plans.items() if not p.is_base]
+    canon = st.session_state["pisos_df"]
+    base_now = float(st.session_state.get("base_elev", bd.base_elevation))
+    cb, _ = st.columns([1, 3])
+    new_base = cb.number_input("Cota inicial — base do modelo (m)", value=base_now, step=0.01, format="%.2f",
+                               key=f"base_input_{st.session_state.get('pisos_ver', 0)}")
+    if abs(new_base - base_now) > 1e-6:
+        st.session_state["base_elev"] = round(new_base, 4)
+        set_pisos(relevel(canon, round(new_base, 4)))
+        st.rerun()
+
     edited = st.data_editor(
-        st.session_state["pisos_df"], num_rows="dynamic", use_container_width=True, hide_index=True,
+        canon, num_rows="fixed", use_container_width=True, hide_index=True,
         column_config={
-            "Importar": st.column_config.CheckboxColumn(help="Desmarque para não importar este pavimento"),
+            "Remover": st.column_config.CheckboxColumn(help="Marque e use o botão 'Remover selecionados'"),
+            "Importar": st.column_config.CheckboxColumn(help="Desmarque para não importar (o nível é mantido)"),
             "Piso": st.column_config.NumberColumn(step=1, disabled=True),
             "Título": st.column_config.TextColumn(),
             "Planta": st.column_config.SelectboxColumn(options=plan_tags, required=True),
-            "Cota (m)": st.column_config.NumberColumn(format="%.2f", step=0.01),
-            "Pé-direito (m)": st.column_config.NumberColumn(format="%.2f", step=0.01, min_value=0.5),
+            "Cota (m)": st.column_config.NumberColumn(format="%.2f", step=0.01,
+                                                      help="Derivada: cota inicial + pés-direitos. Editável."),
+            "Pé-direito (m)": st.column_config.NumberColumn(format="%.2f", step=0.01, min_value=0.0),
             "fck pilares": st.column_config.TextColumn(), "fck vigas": st.column_config.TextColumn(),
             "fck lajes": st.column_config.TextColumn(),
-        }, key="pisos_editor")
-    colA, colB, colC = st.columns([1, 1, 2])
-    add_plan = colA.selectbox("Planta a replicar", plan_tags, key="add_plan")
-    add_h = colB.number_input("Pé-direito (m)", value=float(bd.pisos[-1].height if bd.pisos else 3.0), step=0.01, key="add_h")
-    if colC.button("➕ Adicionar pavimento no topo", use_container_width=True):
-        df = edited.copy()
-        last = df.sort_values("Cota (m)").iloc[-1] if len(df) else None
-        cota = float(last["Cota (m)"]) + add_h if last is not None else bd.base_elevation + add_h
-        proto = next((p for p in bd.pisos if p.plan_tag == add_plan), None)
-        df.loc[len(df)] = {"Importar": True, "Piso": len(df) + 1, "Título": proto.title if proto else bd.plans[add_plan].name,
-                           "Planta": add_plan, "Cota (m)": round(cota, 2), "Pé-direito (m)": add_h,
-                           "fck pilares": proto.materials.get("pilares") if proto else ui["default_material"],
-                           "fck vigas": proto.materials.get("vigas") if proto else ui["default_material"],
-                           "fck lajes": proto.materials.get("lajes") if proto else ui["default_material"]}
-        st.session_state["pisos_df"] = df
+        }, key=f"pisos_editor_{st.session_state.get('pisos_ver', 0)}")
+
+    # niveis conectados: aplica a edicao (PD ou cota) e redesenha a tabela coerente
+    heights, cotas = reconcile_levels(
+        base_now, [float(h or 0) for h in canon["Pé-direito (m)"]], [float(c or 0) for c in canon["Cota (m)"]],
+        [float(h or 0) for h in edited["Pé-direito (m)"]], [float(c or 0) for c in edited["Cota (m)"]])
+    fixed = edited.copy()
+    fixed["Pé-direito (m)"] = heights
+    fixed["Cota (m)"] = cotas
+    def _differs(a, b) -> bool:
+        return any(abs(float(x) - float(y)) > 1e-6 for x, y in zip(a, b))
+
+    if not fixed.equals(canon):
+        levels_changed = (_differs(fixed["Cota (m)"], edited["Cota (m)"])
+                          or _differs(fixed["Pé-direito (m)"], edited["Pé-direito (m)"]))
+        if levels_changed:
+            set_pisos(fixed)                      # cotas/PD recalculados: redesenha o editor
+            st.rerun()
+        st.session_state["pisos_df"] = fixed      # so texto/checkbox: mantem o editor como esta
+
+    to_remove = int(fixed["Remover"].fillna(False).astype(bool).sum())
+    colR, colA, colB, colC = st.columns([1.2, 1, 1, 1.6])
+    if colR.button(f"🗑️ Remover selecionados ({to_remove})", use_container_width=True, disabled=to_remove == 0):
+        keep = fixed[~fixed["Remover"].fillna(False).astype(bool)]
+        set_pisos(relevel(keep, base_now))
         st.rerun()
-    st.session_state["pisos_df_edited"] = edited
+    add_plan = colA.selectbox("Planta a replicar", plan_tags, key="add_plan")
+    last_h = float(fixed["Pé-direito (m)"].iloc[-1]) if len(fixed) else 3.0
+    add_h = colB.number_input("Pé-direito (m)", value=last_h, step=0.01, key="add_h")
+    if colC.button("➕ Adicionar pavimento no topo", use_container_width=True):
+        proto = next((p for p in bd.pisos if p.plan_tag == add_plan), None)
+        row = {"Remover": False, "Importar": True, "Piso": len(fixed) + 1,
+               "Título": proto.title if proto else bd.plans[add_plan].name, "Planta": add_plan,
+               "Cota (m)": 0.0, "Pé-direito (m)": add_h,
+               "fck pilares": proto.materials.get("pilares") if proto else ui["default_material"],
+               "fck vigas": proto.materials.get("vigas") if proto else ui["default_material"],
+               "fck lajes": proto.materials.get("lajes") if proto else ui["default_material"]}
+        set_pisos(relevel(pd.concat([fixed, pd.DataFrame([row])], ignore_index=True), base_now))
+        st.rerun()
+    st.session_state["pisos_df_edited"] = st.session_state["pisos_df"]
+    top_cota = float(fixed["Cota (m)"].iloc[-1]) if len(fixed) else base_now
+    st.caption(f"Base {base_now:.2f} m · topo {top_cota:.2f} m · altura total {top_cota - base_now:.2f} m · "
+               f"{int(fixed['Importar'].fillna(True).astype(bool).sum())} de {len(fixed)} pisos a importar")
+
+with tab_elem:
+    el_tag = st.selectbox("Planta", preview_tags, key="elem_tag",
+                          format_func=lambda t: f"{t} — {bd.plans[t].name}" + (" (fundação)" if bd.plans[t].is_base else ""))
+    try:
+        el_model = preview_model(bd, el_tag, build_config(base_config, ui))
+        o1, o2, o3, o4 = st.columns(4)
+        show_cols = o1.checkbox("Pilares / paredes", True, key="el_cols")
+        show_beams = o2.checkbox("Vigas", True, key="el_beams")
+        show_slabs = o3.checkbox("Lajes", True, key="el_slabs")
+        show_nodes = o4.checkbox("Nós", False, key="el_nodes")
+        st.plotly_chart(plan_figure(el_model, f"{el_tag} — {bd.plans[el_tag].name}", detailed=True,
+                                    show_nodes=show_nodes, show_beams=show_beams, show_slabs=show_slabs,
+                                    show_columns=show_cols, height=680),
+                        use_container_width=True, key="preview_detail", theme=None)
+        tables = element_tables(el_model)
+        for (name, df), tab in zip(tables.items(), st.tabs([f"{k} ({len(v)})" for k, v in tables.items()])):
+            with tab:
+                st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Elementos indisponíveis para {el_tag}: {exc}")
 
 with tab_plantas:
     rows = []
@@ -488,7 +618,7 @@ st.markdown('<div class="step" style="margin-top:12px">5 · Gerar modelo ETABS</
 gen = st.button("⚙️ Gerar E2K", type="primary", use_container_width=True, disabled=bool(errs))
 if gen:
     try:
-        pisos = df_to_pisos(st.session_state.get("pisos_df_edited", st.session_state["pisos_df"]), bd, bd.base_elevation)
+        pisos = df_to_pisos(st.session_state["pisos_df"], bd, float(st.session_state.get("base_elev", bd.base_elevation)))
         if not pisos:
             st.error("Nenhum pavimento selecionado para importar.")
             st.stop()
@@ -553,33 +683,9 @@ if result is not None:
                 st.code("\n".join(x.format() for x in ch[:300]) or "(só arredondamentos)", language="text")
     with t3:
         try:
-            import plotly.graph_objects as go
             for tag, pr in result.plans.items():
-                m = pr.normalization.model
-                fig = go.Figure()
-                for col in m.columns.values():
-                    for s in col.axes:
-                        fig.add_trace(go.Scatter(x=[s.start.x, s.end.x], y=[s.start.y, s.end.y], mode="lines",
-                                                 line=dict(color="#f59e0b", width=max(2, s.thickness * 12)),
-                                                 name=col.id, showlegend=False, hovertext=f"{col.id} t={s.thickness:.2f}"))
-                    if col.kind_hint == ColumnKind.COLUMN:
-                        cc = col.centroid
-                        fig.add_trace(go.Scatter(x=[cc.x], y=[cc.y], mode="markers", marker=dict(color="#f59e0b", size=10),
-                                                 showlegend=False, hovertext=col.id))
-                for b in m.beams.values():
-                    pts = [m.node(n).point for n in b.axis]
-                    fig.add_trace(go.Scatter(x=[p.x for p in pts], y=[p.y for p in pts], mode="lines",
-                                             line=dict(color="#4f8cff", width=2), showlegend=False, hovertext=b.id))
-                for s in m.slabs.values():
-                    pts = [m.node(e.start_node_id).point for e in s.edges]
-                    fig.add_trace(go.Scatter(x=[p.x for p in pts] + [pts[0].x], y=[p.y for p in pts] + [pts[0].y],
-                                             fill="toself", fillcolor="rgba(34,211,238,.08)", mode="lines",
-                                             line=dict(color="#22d3ee", width=1), showlegend=False, hovertext=s.id))
-                fig.update_layout(title=f"{tag} — {', '.join(pr.stories) or 'fundação'}", height=520,
-                                  paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                                  font=dict(color="#e8edf7"), margin=dict(l=20, r=20, t=40, b=20))
-                fig.update_yaxes(scaleanchor="x", scaleratio=1, gridcolor="#243055")
-                fig.update_xaxes(gridcolor="#243055")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(plan_figure(pr.normalization.model, f"{tag} — {', '.join(pr.stories) or 'fundação'}",
+                                            detailed=True, height=560),
+                                use_container_width=True, key=f"result_plan_{tag}", theme=None)
         except ImportError:
             st.info("Instale `plotly` para ver o desenho das plantas.")
