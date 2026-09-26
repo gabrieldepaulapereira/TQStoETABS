@@ -107,9 +107,9 @@ de modelagem e gere o `.e2k` + relatório de auditoria, com o desenho de cada pl
   Mudar um pé-direito desloca o piso e todos os de cima; mudar a cota inicial desloca todos; digitar uma cota
   vira mudança do pé-direito daquele piso (`application/levels.py`). *Importar* desmarcado pula o piso
   mantendo os níveis; *Remover* + botão apaga os pisos marcados e os de cima descem.
-- **Prévia da planta** logo após varrer (já com as regras de modelagem aplicadas) e aba **Elementos** com o
-  desenho completo — nomes de pilares, vigas (ao longo do eixo), lajes (com espessura) e, opcionalmente, nós —
-  e tabelas de pilares, vigas, lajes e nós (`app/plan_view.py`).
+- **Prévia da planta** logo após varrer, sempre detalhada (já com as regras de modelagem aplicadas): nomes de
+  pilares, vigas (ao longo do eixo), lajes (com espessura) e, opcionalmente, nós. A aba **Elementos** traz as
+  tabelas de pilares, vigas, lajes e nós da mesma planta (`app/plan_view.py`).
 - **Materiais**: por classe, E *atual* (CONCRETO.DAT do TQS), *Prudêncio* (tabela do modelo MARAMBAIA) e
   *NBR 6118* (Ecs = αi·5600·√fck); escolha a fonte ou um valor *manual* (`EtabsOptions.e_overrides`).
 

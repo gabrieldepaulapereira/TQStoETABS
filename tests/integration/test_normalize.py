@@ -20,8 +20,8 @@ def test_no_errors_no_validation_warnings(result):
     assert not result.engine.has_errors
     val = result.engine.step("validate_model")
     assert val.stats["ERROR"] == 0 and val.stats["WARNING"] == 0
-    # 5 nos fundidos (vigas levadas as pontas das paredes); 6 lajes rebaixadas absorvidas
-    assert (len(m.nodes), len(m.columns), len(m.beams), len(m.slabs)) == (116, 8, 22, 8)
+    # 8 nos fundidos (vigas levadas as pontas/cantos das paredes); 6 lajes rebaixadas absorvidas
+    assert (len(m.nodes), len(m.columns), len(m.beams), len(m.slabs)) == (113, 8, 22, 8)
 
 
 def test_all_coordinates_have_two_decimals(result):
@@ -35,7 +35,12 @@ def test_all_coordinates_have_two_decimals(result):
 def test_column_axes(result):
     cols = result.model.columns
     assert all(c.kind_hint == ColumnKind.WALL for c in cols.values())
-    assert len(cols["P3"].axes) == 5 and len(cols["P6"].axes) == 5
+    assert len(cols["P3"].axes) == 3 and len(cols["P6"].axes) == 3      # U sem tocos: 2 bracos + alma
+    for cid in ("P3", "P6"):                                              # cantos exatamente no cruzamento
+        ends = [(round(p.x, 2), round(p.y, 2)) for seg in cols[cid].axes for p in (seg.start, seg.end)]
+        web = next(seg for seg in cols[cid].axes if seg.direction == "X")
+        for corner in ((round(web.start.x, 2), round(web.start.y, 2)), (round(web.end.x, 2), round(web.end.y, 2))):
+            assert ends.count(corner) == 2
     assert len(cols["P4"].axes) == 1 and cols["P4"].axes[0].start.x == pytest.approx(-27.95)
     xs = sorted({round(s.start.x, 2) for s in cols["P3"].axes if s.direction == "Y"})
     assert xs == [-11.76, -4.65]
@@ -58,7 +63,7 @@ def test_beam_end_extensions_match_expected_table(result):
     # V16/V22 ja estavam nas linhas medias dos bracos: nao movidas
     assert "N3" not in ext and "N4" not in ext and "N1" not in ext and "N2" not in ext
     assert result.engine.step("snap_beams_transverse").stats["nodes_moved"] == 0
-    assert result.engine.step("merge_nodes").stats["merged"] == 5      # extremidades que coincidiram nas pontas
+    assert result.engine.step("merge_nodes").stats["merged"] == 8      # extremidades que coincidiram nas pontas/cantos
 
 
 def test_grids(result):
@@ -74,11 +79,14 @@ def test_wall_end_snap_and_slab_rules(result):
     m = result.model
     wall = result.engine.step("snap_beams_to_wall_ends")
     assert wall.stats["beams_moved"] == 10
-    # V1 passa pela ponta de P1 (y = 24,83) e V7 pelas pontas dos bracos do P3 (y = 22,14)
-    assert m.node("N37").y == 24.83 and m.node("N42").y == 24.83
+    # V1 vai da ponta de P1 (y = 24,83) ao canto do nucleo P3 (24,68): pontas em linhas diferentes -> viga
+    # levemente inclinada, sem toco nem dente; V7 passa pelas pontas dos bracos do P3 (y = 22,14)
+    assert m.node("N37").y == 24.83 and (m.node("N38").x, m.node("N38").y) == (-11.76, 24.68)
+    assert 24.68 < m.node("N42").y < 24.83
     assert all(m.node(n).y == 22.14 for n in m.beams["V7"].axis)
-    # V13 vai para a ponta de P5 (15,09); a juncao braco/alma do P6 nao conta como ponta
-    assert m.node("N32").y == 15.09
+    # V13: ponta de P5 (15,09) e canto do P6 (cruzamento dos eixos, 15,24)
+    assert m.node("N32").y == 15.09 and (m.node("N33").x, m.node("N33").y) == (-11.76, 15.24)
+    assert any(d.code == "ALIGN-I-WALL-END-TILT" and "V13" in d.refs for d in m.diagnostics)
     # lajes: rebaixos absorvidos, vertices nas linhas medias, aberturas nos vazios
     assert result.engine.step("absorb_offset_slabs").stats["absorbed"] == 6
     assert set(m.slabs) == {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"}
@@ -125,7 +133,7 @@ def test_lst_warnings_mapped_to_actions(result):
 
 def test_comparison_counts(result):
     c = result.comparison.counts
-    assert c["node"] == {"tqs": 121, "kept": 116, "modified": 116, "removed": 5}
+    assert c["node"] == {"tqs": 121, "kept": 113, "modified": 113, "removed": 8}
     assert c["beam"]["modified"] == 22 and c["column"]["modified"] == 8
     assert c["slab"] == {"tqs": 14, "kept": 8, "modified": 8, "removed": 6}
     v16 = next(i for i in result.comparison.items if i.element_id == "V16")

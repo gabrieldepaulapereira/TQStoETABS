@@ -65,11 +65,24 @@ def test_join_corners_u_shape():
     arm_r = AxisSegment(Point(5, 0), Point(5, 3), 0.6)
     web = AxisSegment(Point(0.3, 2.75), Point(4.7, 2.75), 0.5)
     out = join_corners([arm_l, arm_r, web], tol=0.005)
-    assert len(out) == 5
+    assert len(out) == 3                       # cantos sem toco: bracos terminam no eixo da alma
     webs = [s for s in out if s.direction == "X"]
     assert len(webs) == 1 and sorted((webs[0].start.x, webs[0].end.x)) == [0.0, 5.0]
     arms = sorted((min(s.start.y, s.end.y), max(s.start.y, s.end.y)) for s in out if s.direction == "Y")
-    assert arms == [(0.0, 2.75), (0.0, 2.75), (2.75, 3.0), (2.75, 3.0)]
+    assert arms == [(0.0, 2.75), (0.0, 2.75)]
+
+
+def test_join_corners_l_and_t():
+    """L: as duas laminas terminam no cruzamento dos eixos. T: a lamina atravessada e dividida."""
+    vert = AxisSegment(Point(8.15, 0.0), Point(8.15, 3.5), 0.3)       # vai ate a face externa (y=0)
+    horiz = AxisSegment(Point(8.3, 0.15), Point(10.3, 0.15), 0.3)    # para na face interna do vertical
+    out = join_corners([vert, horiz], tol=0.005)
+    ends = sorted(((round(s.start.x, 3), round(s.start.y, 3)), (round(s.end.x, 3), round(s.end.y, 3))) for s in out)
+    assert ends == [((8.15, 0.15), (8.15, 3.5)), ((8.15, 0.15), (10.3, 0.15))]
+    stem = AxisSegment(Point(2.0, 0.15), Point(2.0, 3.0), 0.3)       # T: haste no meio da barra
+    bar = AxisSegment(Point(0.0, 0.0), Point(4.0, 0.0), 0.3)
+    out = join_corners([bar, stem], tol=0.005)
+    assert len(out) == 3 and min(min(s.start.y, s.end.y) for s in out if s.direction == "Y") == 0.0
 
 
 # ------------------------------------------------------------- pipeline

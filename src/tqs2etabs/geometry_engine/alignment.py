@@ -121,6 +121,9 @@ def _end_target(node: Point, u: tuple[float, float], col: Column, snap_tol: floa
     """Alvo (ponto, distancia ao longo da viga, excentricidade) para uma extremidade apoiada em `col`."""
     best = None
     if col.kind_hint == ColumnKind.WALL and col.axes:
+        # canto de L/U sem toco: a lamina termina no cruzamento dos eixos, e a viga que chegava na regiao
+        # do canto (ate meia espessura alem da ponta) vai para o proprio canto
+        corner_slack = max(s.thickness for s in col.axes) / 2 + snap_tol
         for seg in col.axes:
             v = _seg_dir(seg)
             if v is None:
@@ -138,8 +141,10 @@ def _end_target(node: Point, u: tuple[float, float], col: Column, snap_tol: floa
                 if target is None:
                     continue
                 t = _proj(target, seg.start, v)
-                if t < -snap_tol or t > seg.length + snap_tol:
+                if t < -corner_slack or t > seg.length + corner_slack:
                     continue
+                # alem da ponta (regiao do canto): a extremidade vai ate a linha do eixo; o deslocamento
+                # lateral da viga ate a ponta e feito depois pela regra da ponta da parede (snap_beams_to_wall_ends)
                 ecc = 0.0
             d = node.distance_to(target)
             if best is None or d < best[1]:
@@ -246,14 +251,20 @@ def _dist_to_segment(p: Point, seg: AxisSegment) -> float:
 
 
 def _wall_true_ends(col: Column, tol: float) -> list[Point]:
-    """Extremidades reais das linhas de eixo (pontos que pertencem a um unico segmento)."""
-    pts: list[Point] = []
-    for s in col.axes:
-        pts.extend((s.start, s.end))
+    """Extremidades reais das linhas de eixo: pontos de um unico segmento, ou canto em L (dois segmentos
+    nao colineares). Como os cantos nao tem mais toco, o cruzamento dos eixos e a ponta da parede para a
+    viga que chega de fora. Juncoes em T (3+ segmentos) e emendas colineares continuam sendo interiores."""
     ends = []
-    for p in pts:
-        if sum(1 for q in pts if q.distance_to(p) <= tol) == 1:
-            ends.append(p)
+    for s in col.axes:
+        for p in (s.start, s.end):
+            touching = [t for t in col.axes if t.start.distance_to(p) <= tol or t.end.distance_to(p) <= tol]
+            if len(touching) == 1:
+                ends.append(p)
+            elif len(touching) == 2:
+                a, b = (_seg_dir(t) for t in touching)
+                if a is not None and b is not None and abs(a[0] * b[1] - a[1] * b[0]) > 1e-6:
+                    if all(p.distance_to(q) > tol for q in ends):
+                        ends.append(p)
     return ends
 
 
@@ -312,14 +323,61 @@ def snap_beams_to_wall_ends(model: StructuralModel, config: Config) -> StepResul
                     return False
             return True
 
+        def worst(s: float) -> float:
+            return max(abs(s - c[0]) for c in cands)
+
         options = [s for s in sorted({round(s, 6) for s, _, _ in cands}, key=abs) if keeps_supports(s)]
-        if not options:
+        best = min(options, key=lambda s: (round(worst(s), 6), abs(s))) if options else None
+
+        # pontas de parede em linhas diferentes (ex.: ponta de P5 e canto do nucleo P6, a 15 cm uma da outra):
+        # um deslocamento rigido nao alcanca as duas -> cada extremidade vai para a sua ponta e a viga fica
+        # levemente inclinada (os nos intermediarios acompanham por interpolacao linear)
+        per_node: dict[str, float] = {}
+        for sh, _, nid in sorted(cands, key=lambda c: abs(c[0])):
+            per_node.setdefault(nid, sh)
+        straight = all(abs((model.node(n).point.x - a.x) * nrm[0] + (model.node(n).point.y - a.y) * nrm[1])
+                       <= tolc.node_merge for n in beam.axis)          # so viga reta (nao poligonal/curva)
+        if straight and (best is None or worst(best) > tolc.node_merge)                 and len({round(v, 6) for v in per_node.values()}) > 1:
+            pos = {nid: (model.node(nid).point.x - a.x) * u[0] + (model.node(nid).point.y - a.y) * u[1]
+                   for nid in beam.axis}
+            known = sorted((pos[nid], sh) for nid, sh in per_node.items())
+
+            def interp(t: float) -> float:
+                if t <= known[0][0]:
+                    return known[0][1]
+                if t >= known[-1][0]:
+                    return known[-1][1]
+                for (t0, s0), (t1, s1) in zip(known, known[1:]):
+                    if t0 <= t <= t1:
+                        return s0 + (s1 - s0) * (t - t0) / (t1 - t0) if t1 > t0 else s0
+                return known[-1][1]
+
+            shifts = {nid: interp(pos[nid]) for nid in beam.axis}
+            ok = True
+            for sup in beam.supports:              # apoios fora dos candidatos nao podem sair do eixo
+                col = model.columns.get(sup.ref_id or "")
+                if sup.kind != SupportKind.COLUMN or sup.node_id in per_node or col is None                         or col.kind_hint != ColumnKind.WALL or not col.axes:
+                    continue
+                pnt = model.node(sup.node_id).point
+                q = Point(pnt.x + shifts[sup.node_id] * nrm[0], pnt.y + shifts[sup.node_id] * nrm[1])
+                if min(_dist_to_segment(q, seg) for seg in col.axes) > tolc.node_merge:
+                    ok = False
+            if ok:
+                refs = sorted({c[1] for c in cands})
+                beam_shift[beam.id] = (max(per_node.values(), key=abs), "/".join(refs))
+                for nid in beam.axis:
+                    node_targets.setdefault(nid, []).append(((shifts[nid] * nrm[0], shifts[nid] * nrm[1]),
+                                                             refs[0], beam.id))
+                diag.info("ALIGN-I-WALL-END-TILT", f"{beam.id}: extremidades levadas as pontas de {', '.join(refs)} "
+                          "em linhas diferentes (viga levemente inclinada): "
+                          + ", ".join(f"{nid} {fmt(sh)} m" for nid, sh in per_node.items()),
+                          Source.ENGINE, refs=(beam.id, *refs))
+                continue
+
+        if best is None:
             diag.info("ALIGN-I-WALL-END-SKIPPED", f"{beam.id}: deslocamento para ponta de parede tiraria a viga do eixo "
                       "de outro apoio; mantida", Source.ENGINE, refs=(beam.id,))
             continue
-        def worst(s: float) -> float:
-            return max(abs(s - c[0]) for c in cands)
-        best = min(options, key=lambda s: (round(worst(s), 6), abs(s)))
         if abs(best) < 1e-9:
             continue
         ref = next(c[1] for c in cands if abs(c[0] - best) < 1e-9)

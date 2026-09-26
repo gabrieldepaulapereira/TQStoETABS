@@ -100,9 +100,10 @@ def join_corners(segments: list[AxisSegment], tol: float) -> list[AxisSegment]:
 
     1. a extremidade que para na face da lamina perpendicular e prolongada ate a linha
        media dela (a alma do U passa a alcancar a linha media dos bracos);
-    2. a lamina atravessada no seu interior e dividida no ponto de encontro (o braco do
-       U vira [ponta, alma] + [alma, face externa]); nada e recuado, para que o toco que
-       representa o canto continue existindo como painel.
+    2. canto (L, U): se o encontro cai a ate meia espessura da lamina perpendicular de uma
+       extremidade, o trecho alem do encontro e so a espessura do canto -> e **removido** e a
+       lamina termina exatamente no cruzamento dos eixos (sem toco de parede no modelo analitico);
+    3. T / cruzamento interno: a lamina atravessada e dividida no ponto de encontro.
     """
     # passo 1: prolongar extremidades
     extended: list[AxisSegment] = []
@@ -125,10 +126,11 @@ def join_corners(segments: list[AxisSegment], tol: float) -> list[AxisSegment]:
             elif ps > s.length and new_end.distance_to(inter) <= reach:
                 new_end = inter
         extended.append(AxisSegment(new_start, new_end, s.thickness))
-    # passo 2: dividir no interior
+    # passo 2: cantos perdem o toco; cruzamentos internos dividem a lamina
     result: list[AxisSegment] = []
     for i, s in enumerate(extended):
         u = _unit(s)
+        lo, hi = 0.0, s.length
         cuts: list[float] = []
         for j, t in enumerate(extended):
             if i == j:
@@ -140,9 +142,14 @@ def join_corners(segments: list[AxisSegment], tol: float) -> list[AxisSegment]:
             if inter is None or not _within_extent(inter, t, s.thickness / 2 + tol):
                 continue
             ps = (inter.x - s.start.x) * u[0] + (inter.y - s.start.y) * u[1]
-            if tol < ps < s.length - tol:
+            corner = t.thickness / 2 + tol          # alem do encontro so resta a espessura do canto
+            if tol < ps <= corner:
+                lo = max(lo, ps)                     # recua o inicio ate o cruzamento dos eixos
+            elif s.length - corner <= ps < s.length - tol:
+                hi = min(hi, ps)                     # recua o fim ate o cruzamento dos eixos
+            elif tol < ps < s.length - tol:
                 cuts.append(ps)
-        params = [0.0] + sorted(set(round(c, 9) for c in cuts)) + [s.length]
+        params = [lo] + sorted({round(c, 9) for c in cuts if lo + tol < c < hi - tol}) + [hi]
         for a, b in zip(params, params[1:]):
             if b - a > tol:
                 result.append(AxisSegment(Point(s.start.x + u[0] * a, s.start.y + u[1] * a),

@@ -11,7 +11,7 @@ import math
 
 import pandas as pd
 
-from tqs2etabs.domain.elements import ColumnKind, RectSection
+from tqs2etabs.domain.elements import ColumnKind
 from tqs2etabs.domain.geometry import polygon_area, polygon_centroid
 from tqs2etabs.domain.model import StructuralModel
 
@@ -123,8 +123,8 @@ def plan_figure(model: StructuralModel, title: str = "", *, detailed: bool = Fal
 def element_tables(model: StructuralModel) -> dict[str, pd.DataFrame]:
     cols = []
     for c in model.columns.values():
-        if isinstance(c.section, RectSection):
-            sec = f"{c.section.width * 100:.0f}×{c.section.length * 100:.0f}"
+        if hasattr(c.section, "length") and hasattr(c.section, "width"):      # RectSection (duck typing)
+            sec = f"{c.section.length * 100:g}/{c.section.width * 100:g}"      # L/B como no LDF (R L/B)
         else:
             sec = "poligonal"
         cols.append({"Pilar": c.id, "Tipo": "parede (shell)" if c.kind_hint == ColumnKind.WALL else "pilar (frame)",

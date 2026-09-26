@@ -34,10 +34,12 @@ def _reload_package_if_stale() -> None:
     um `git push` atualiza os arquivos sem reiniciar o processo e o app passa a rodar com o pacote antigo
     (ex.: TypeError por argumento novo). Compara o carimbo dos .py e descarta o pacote quando mudou."""
     pkg_dir = ROOT / "src" / "tqs2etabs"
-    stamp = max((f.stat().st_mtime_ns for f in pkg_dir.rglob("*.py")), default=0)
+    files = list(pkg_dir.rglob("*.py")) + [Path(__file__).resolve().parent / "plan_view.py"]
+    stamp = max((f.stat().st_mtime_ns for f in files if f.exists()), default=0)
     loaded = sys.modules.get("tqs2etabs")
     if loaded is not None and getattr(loaded, "_loaded_stamp", None) != stamp:
-        for name in [m for m in sys.modules if m == "tqs2etabs" or m.startswith("tqs2etabs.")]:
+        # plan_view (app/) guarda referencias as classes do pacote: recarrega junto, senao isinstance falha
+        for name in [m for m in sys.modules if m in ("tqs2etabs", "plan_view") or m.startswith("tqs2etabs.")]:
             del sys.modules[name]
         loaded = None
     if loaded is None:
@@ -243,7 +245,9 @@ def plan_preview(ldf: str, lst: str | None, stamp: float, cfg_key: str, _config:
 def preview_model(bd: BuildingDefinition, tag: str, config: Config):
     plan = bd.plans[tag]
     stamp = Path(plan.ldf_path).stat().st_mtime
-    key = repr((config.tolerances, config.policy, config.grids))
+    # a chave inclui o carimbo do pacote: depois de mudar o codigo (git push) a previa e refeita
+    code = getattr(sys.modules.get("tqs2etabs"), "_loaded_stamp", 0)
+    key = repr((config.tolerances, config.policy, config.grids, code))
     return plan_preview(plan.ldf_path, plan.lst_path, stamp, key, config)
 
 
@@ -432,19 +436,28 @@ for _p in bd.pisos:
     _first_piso.setdefault(_p.plan_tag, _p.index)
 preview_tags = (sorted((t for t, p in bd.plans.items() if not p.is_base), key=lambda t: _first_piso.get(t, 10**6))
                 + [t for t, p in bd.plans.items() if p.is_base])
+pv_tag = None
+pv_model = None
 if preview_tags:
     st.markdown('<div class="step" style="margin-top:14px">Prévia da planta</div>', unsafe_allow_html=True)
-    pv_col, _ = st.columns([2, 3])
+    pv_col, o1, o2, o3, o4 = st.columns([2.2, 1.2, 0.8, 0.8, 0.8], vertical_alignment="bottom")
     pv_tag = pv_col.selectbox("Planta", preview_tags, key="preview_tag", label_visibility="collapsed",
                               format_func=lambda t: f"{t} — {bd.plans[t].name}"
                               + (" (fundação)" if bd.plans[t].is_base else ""))
+    show_cols = o1.checkbox("Pilares / paredes", True, key="el_cols")
+    show_beams = o2.checkbox("Vigas", True, key="el_beams")
+    show_slabs = o3.checkbox("Lajes", True, key="el_slabs")
+    show_nodes = o4.checkbox("Nós", False, key="el_nodes")
     try:
         with st.spinner("Montando a prévia…"):
             pv_model = preview_model(bd, pv_tag, build_config(base_config, ui))
-        st.plotly_chart(plan_figure(pv_model, height=460), use_container_width=True, key="preview_main", theme=None)
+        st.plotly_chart(plan_figure(pv_model, f"{pv_tag} — {bd.plans[pv_tag].name}", detailed=True,
+                                    show_nodes=show_nodes, show_beams=show_beams, show_slabs=show_slabs,
+                                    show_columns=show_cols, height=640),
+                        use_container_width=True, key="preview_main", theme=None)
         st.caption(f"{len(pv_model.columns)} pilares/paredes · {len(pv_model.beams)} vigas · {len(pv_model.slabs)} lajes "
-                   "— já com as regras de modelagem aplicadas (alinhamentos, lajes simplificadas). Detalhes na aba "
-                   "**Elementos**.")
+                   "— já com as regras de modelagem aplicadas (alinhamentos, cantos no eixo, lajes simplificadas). "
+                   "Lista dos elementos na aba **Elementos**.")
     except Exception as exc:  # noqa: BLE001
         st.warning(f"Prévia indisponível para {pv_tag}: {exc}")
 
@@ -525,25 +538,14 @@ with tab_pisos:
                f"{int(fixed['Importar'].fillna(True).astype(bool).sum())} de {len(fixed)} pisos a importar")
 
 with tab_elem:
-    el_tag = st.selectbox("Planta", preview_tags, key="elem_tag",
-                          format_func=lambda t: f"{t} — {bd.plans[t].name}" + (" (fundação)" if bd.plans[t].is_base else ""))
-    try:
-        el_model = preview_model(bd, el_tag, build_config(base_config, ui))
-        o1, o2, o3, o4 = st.columns(4)
-        show_cols = o1.checkbox("Pilares / paredes", True, key="el_cols")
-        show_beams = o2.checkbox("Vigas", True, key="el_beams")
-        show_slabs = o3.checkbox("Lajes", True, key="el_slabs")
-        show_nodes = o4.checkbox("Nós", False, key="el_nodes")
-        st.plotly_chart(plan_figure(el_model, f"{el_tag} — {bd.plans[el_tag].name}", detailed=True,
-                                    show_nodes=show_nodes, show_beams=show_beams, show_slabs=show_slabs,
-                                    show_columns=show_cols, height=680),
-                        use_container_width=True, key="preview_detail", theme=None)
-        tables = element_tables(el_model)
+    if pv_model is None:
+        st.info("Selecione uma planta na prévia acima.")
+    else:
+        st.caption(f"Elementos da planta **{pv_tag} — {bd.plans[pv_tag].name}** (a mesma da prévia acima; troque lá).")
+        tables = element_tables(pv_model)
         for (name, df), tab in zip(tables.items(), st.tabs([f"{k} ({len(v)})" for k, v in tables.items()])):
             with tab:
                 st.dataframe(df, use_container_width=True, hide_index=True)
-    except Exception as exc:  # noqa: BLE001
-        st.warning(f"Elementos indisponíveis para {el_tag}: {exc}")
 
 with tab_plantas:
     rows = []
